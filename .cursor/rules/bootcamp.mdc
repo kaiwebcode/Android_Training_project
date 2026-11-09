@@ -1,12 +1,13 @@
 ---
-description: Week 1 Android bootcamp project workflow
+description: Week 2 Android bootcamp project workflow & AI agent context
 alwaysApply: true
 ---
 
-- Read AGENTS.md and docs/CURRENT_STATUS.md before starting work.
-- Follow the current-day scope in docs/CURRENT_STATUS.md.
-- Day 3 is planning only; do not write feature code until trainer approval is recorded.
-- Before Task List implementation, review docs/REQUIREMENTS.md, docs/DEVELOPMENT_PLAN.md, docs/ARCHITECTURE.md and docs/DECISIONS.md.
-- Preserve current Kotlin Android conventions and avoid unapproved UI toolkit changes.
-- Keep the first Task List implementation scoped to the approved screen; no backend or durable persistence unless approved.
-- Record actual build, test and runtime results in docs/CURRENT_STATUS.md.
+- Read `AGENTS.md`, `docs/CURRENT_STATUS.md`, and `docs/AI_HANDOFF.md` before starting work.
+- Follow the current-day scope in `docs/CURRENT_STATUS.md`.
+- **Day 6 is planning only;** do not write API or feature code until trainer approval is recorded in `docs/DECISIONS.md`.
+- Before REST API integration on Day 7, review `docs/REQUIREMENTS.md`, `docs/DEVELOPMENT_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `docs/API_CONTRACT.md`.
+- Ensure all API-backed screens support 4 mandatory UI states: `Loading`, `Content/Success`, `Empty`, and `Error`.
+- Preserve current Kotlin Android MVVM conventions and avoid unapproved UI framework migrations.
+- Follow 4-step defect debugging (**Reproduce → Observe → Isolate → Verify**) and record findings in `docs/DEBUGGING_LOG.md`.
+- Record actual build, test, and runtime results in `docs/CURRENT_STATUS.md`.

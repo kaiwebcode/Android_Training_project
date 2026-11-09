@@ -1,31 +1,24 @@
-# Current Status — Day 4 (Debug and Deliver Complete)
+# Current Status — Day 5 (Agent Setup & Handoff Lab Complete)
 
 ## Done
-- [x] Reviewed Day 3 brief and translated business request into user stories.
-- [x] Documented acceptance criteria, edge cases, and open questions.
-- [x] Prepared development plan, proposed file map, and verification plan.
-- [x] Created architecture diagrams and completed Codex reviews.
-- [x] Obtained Trainer Approval for Day 4 implementation decisions.
-- [x] Implemented data model (`Task`, `TaskPriority`), repository contract, and `InMemoryTaskRepository`.
-- [x] Implemented `TaskListViewModel` and `TaskListUiState` with live task counters and state emission.
-- [x] Built pixel-perfect UI matching reference design (gradient header, notification badge, stats cards, task adapter, FAB, bottom nav, bottom sheet dialog, celebration dialog).
-- [x] **Bug Challenge A (Button tap does nothing)**: Debugged via `Reproduce` → `Breakpoint` → `Root Cause` → `Fix` → `Retest`; wired click listeners and validation feedback (`docs/BUG_CHALLENGES.md`).
-- [x] **Bug Challenge B (Task list fails to display or update correctly)**: Implemented lifecycle-aware StateFlow collection and `ListAdapter`; review also corrected task completion to be one-way per trainer approval (`docs/BUG_CHALLENGES.md`).
-- [x] **Local submission artifacts**:
-  - APK: `app/build/outputs/apk/debug/app-debug.apk` (`:app:assembleDebug` passed Nov 7, 2026)
-  - Current branch: `day4/android-code-walkthrough` (verified Nov 7, 2026)
-  - Proposed PR text: `docs/PULL_REQUEST.md` (a hosting-service PR is not verified)
-  - Codex review summary: `docs/CODEX_REVIEW.md`
-  - Debugging log: `docs/DEBUGGING_LOG.md`
-  - Current status: `docs/CURRENT_STATUS.md`
-  - `git diff --check` passed Nov 7, 2026.
-- [x] Fixed issue where newly created tasks did not show details in `TaskDetailsActivity` by sharing `InMemoryTaskRepository` singleton instance across activities.
-- [x] Verified unit tests (`:app:testDebugUnitTest` 7/7 passed).
+- [x] Reviewed Week 2 Bootcamp PowerPoint brief (`Android_Developer_Bootcamp_Week_2_Matching_Week_1.pptx`).
+- [x] Established Week 2 AI Agent workflow rules in `AGENTS.md` and `.cursor/rules/bootcamp.mdc`.
+- [x] Created `docs/AI_HANDOFF.md` documenting current project baseline, architecture, code risks, and context resumption steps.
+- [x] Verified project build (`:app:assembleDebug`) and unit tests (`:app:testDebugUnitTest` 7/7 passed).
+- [x] Verified existing Week 1 baseline:
+  - Task data model (`Task`, `TaskPriority`), repository boundary (`TaskRepository`), and `InMemoryTaskRepository`.
+  - `TaskListViewModel` and `TaskListUiState` with live state emission.
+  - UI matching reference design (gradient header, notification badge, stats cards, task adapter, FAB, bottom sheet dialog, celebration dialog).
+  - Multi-activity support with `TaskDetailsActivity`.
 
-## Next
-- Demonstrate app execution to trainer.
-- Prepare for Day 5.
+## Next — Day 6 (Tuesday: Plan MVVM + REST API)
+- Define user stories and acceptance criteria for API task loading and failure states.
+- Draft `docs/API_CONTRACT.md` specifying endpoints, JSON responses, error codes, and sample payloads.
+- Model 4 mandatory UI states: `Loading`, `Content/Success`, `Empty`, `Error`.
+- Update architecture & sequence diagrams in `docs/ARCHITECTURE.md` tracing `Screen` → `ViewModel` → `Repository` → `API`.
+- Request Codex/AI code review on proposed planning documents.
+- **Obtain Trainer Approval** before writing feature code on Day 7 (Day 6 is planning only).
 
-## Test results
+## Test Results
 - `:app:testDebugUnitTest`: 7 passed, 0 failed.
 - `:app:assembleDebug`: Build finished successfully.
