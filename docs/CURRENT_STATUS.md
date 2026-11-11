@@ -1,24 +1,24 @@
-# Current Status — Day 5 (Agent Setup & Handoff Lab Complete)
+# Current Status — Day 6 (Plan MVVM + REST API Complete)
 
-## Done
-- [x] Reviewed Week 2 Bootcamp PowerPoint brief (`Android_Developer_Bootcamp_Week_2_Matching_Week_1.pptx`).
-- [x] Established Week 2 AI Agent workflow rules in `AGENTS.md` and `.cursor/rules/bootcamp.mdc`.
-- [x] Created `docs/AI_HANDOFF.md` documenting current project baseline, architecture, code risks, and context resumption steps.
-- [x] Verified project build (`:app:assembleDebug`) and unit tests (`:app:testDebugUnitTest` 7/7 passed).
-- [x] Verified existing Week 1 baseline:
-  - Task data model (`Task`, `TaskPriority`), repository boundary (`TaskRepository`), and `InMemoryTaskRepository`.
-  - `TaskListViewModel` and `TaskListUiState` with live state emission.
-  - UI matching reference design (gradient header, notification badge, stats cards, task adapter, FAB, bottom sheet dialog, celebration dialog).
-  - Multi-activity support with `TaskDetailsActivity`.
+## Done (Day 6 Deliverables Completed)
+- [x] Defined user stories and acceptance criteria for API task loading, network failures, and 4 mandatory UI states in `docs/REQUIREMENTS.md`.
+- [x] Drafted `docs/API_CONTRACT.md` specifying `GET /tasks`, `POST /tasks`, `PUT /tasks/{id}/complete` endpoints, JSON DTOs, HTTP status codes (200 OK, 400 Bad Request, 500 Server Error, Network Exception), error bodies, and state mapping.
+- [x] Modeled 4 mandatory UI states in architecture specifications: `Loading`, `Content/Success`, `Empty`, `Error`.
+- [x] Updated architecture overview and Mermaid sequence diagrams in `docs/ARCHITECTURE.md` and `docs/diagrams/TASK_LIST_ARCHITECTURE.md` tracing `Screen` → `ViewModel` → `Repository` → `API` across all 4 UI states.
+- [x] Updated `docs/DEVELOPMENT_PLAN.md` with Day 6 design outputs and Day 7 step-by-step implementation plan.
+- [x] Updated `docs/DECISIONS.md` with Day 6 architecture design decisions.
+- [x] Verified zero feature code was written on Day 6 (strictly planning day per PPT slide 7 & 8 rules).
+- [x] Verified existing project build (`:app:assembleDebug`) and unit tests (`:app:testDebugUnitTest` 7/7 passed).
 
-## Next — Day 6 (Tuesday: Plan MVVM + REST API)
-- Define user stories and acceptance criteria for API task loading and failure states.
-- Draft `docs/API_CONTRACT.md` specifying endpoints, JSON responses, error codes, and sample payloads.
-- Model 4 mandatory UI states: `Loading`, `Content/Success`, `Empty`, `Error`.
-- Update architecture & sequence diagrams in `docs/ARCHITECTURE.md` tracing `Screen` → `ViewModel` → `Repository` → `API`.
-- Request Codex/AI code review on proposed planning documents.
-- **Obtain Trainer Approval** before writing feature code on Day 7 (Day 6 is planning only).
+## Next — Day 7 (Wednesday: REST API Integration)
+- Await Trainer Approval of Day 6 planning artifacts in `docs/DECISIONS.md`.
+- Create feature branch `feature/api-task-list`.
+- Add Retrofit / REST API client & DTO models (`TaskDto`).
+- Implement `ApiTaskRepository` with coroutine error handling on `Dispatchers.IO`.
+- Update `TaskListUiState` sealed hierarchy and `TaskListViewModel`.
+- Wire `MainActivity` XML containers and coroutine flow collection to render all 4 UI states.
+- Write unit tests for `TaskListViewModel` and `ApiTaskRepository`.
 
-## Test Results
-- `:app:testDebugUnitTest`: 7 passed, 0 failed.
-- `:app:assembleDebug`: Build finished successfully.
+## Test & Build Verification Results
+- `:app:testDebugUnitTest`: 7 passed, 0 skipped, 0 failed.
+- `:app:assembleDebug`: BUILD SUCCESSFUL.
