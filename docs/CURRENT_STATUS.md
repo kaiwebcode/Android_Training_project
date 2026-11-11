@@ -1,4 +1,4 @@
-# Current Status — Day 6 (Plan MVVM + REST API Complete)
+# Current Status — Day 6 (Plan MVVM + REST API & Codex Review Complete)
 
 ## Done (Day 6 Deliverables Completed)
 - [x] Defined user stories and acceptance criteria for API task loading, network failures, and 4 mandatory UI states in `docs/REQUIREMENTS.md`.
@@ -7,6 +7,7 @@
 - [x] Updated architecture overview and Mermaid sequence diagrams in `docs/ARCHITECTURE.md` and `docs/diagrams/TASK_LIST_ARCHITECTURE.md` tracing `Screen` → `ViewModel` → `Repository` → `API` across all 4 UI states.
 - [x] Updated `docs/DEVELOPMENT_PLAN.md` with Day 6 design outputs and Day 7 step-by-step implementation plan.
 - [x] Updated `docs/DECISIONS.md` with Day 6 architecture design decisions.
+- [x] Completed Codex Plan Review in `docs/CODEX_REVIEW.md` challenging 5 architectural assumptions (sealed state hierarchy, one-shot event handling, exception mapping, test dispatcher injection, and offline fallback).
 - [x] Verified zero feature code was written on Day 6 (strictly planning day per PPT slide 7 & 8 rules).
 - [x] Verified existing project build (`:app:assembleDebug`) and unit tests (`:app:testDebugUnitTest` 7/7 passed).
 
