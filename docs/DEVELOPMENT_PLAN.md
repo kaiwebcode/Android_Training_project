@@ -1,54 +1,98 @@
-# Development Plan (Day 3 — No Code)
+# Employee Task Manager — Development & Architecture Plan (Week 2)
 
-## Goal
-Implement the approved first Task List feature in the existing Kotlin Android project. Follow this plan only after trainer approval.
+## Overall Objective
+Evolve the Employee Task Manager application from an in-memory repository to a robust REST API-backed application featuring clean MVVM architecture, full 4 UI state handling (`Loading`, `Content/Success`, `Empty`, `Error`), thorough defect debugging, and unit testing.
 
-## Proposed architecture
-- TaskListScreen renders immutable task-list state and forwards user actions.
-- TaskListViewModel owns screen state, validates submitted titles, and handles add/complete events.
-- TaskRepository provides task read/write operations and is the boundary for future persistence.
-- InMemoryTaskRepository supplies session-only storage for the first iteration.
-- Task is a small model: ID, title, completion status.
+---
 
-Use the project's existing UI toolkit and conventions. Inspect current XML/AppCompat implementation before deciding whether to evolve it in place or introduce Compose. Any meaningful stack change needs trainer approval.
+## Plan by Day
 
-## Proposed file map
-Exact names/locations are provisional until project structure and trainer preference are confirmed.
-- Existing launcher Activity and layout: connect to or host Task List screen.
-- Task model.
-- TaskRepository contract and InMemoryTaskRepository implementation.
-- TaskListViewModel for state and events, including title validation.
-- Task list UI with list, empty state, add input/action, completion affordance.
-- UI resources for strings and styles/layout as needed.
-- Unit tests for ViewModel validation and event behavior.
-- UI test/manual verification for list, add, complete, empty and invalid input.
+### Day 5: Agent Setup & Handoff Lab (Completed)
+- Established agent workflow guidelines in `AGENTS.md` and `.cursor/rules/bootcamp.mdc`.
+- Created `docs/AI_HANDOFF.md` documenting architecture, test baseline, and code risks.
+- Verified build (`:app:assembleDebug`) and unit tests (7/7 passed).
 
-Do not create or edit these source files as part of Day 3 planning.
+### Day 6: Plan MVVM + REST API Integration (Current — Planning Only)
+- **Goal:** Design API integration and 4 UI state architecture without writing feature code.
+- **Deliverables:**
+  1. `docs/REQUIREMENTS.md` updated with API user stories, acceptance criteria, and 4 UI states.
+  2. `docs/API_CONTRACT.md` created with GET/POST/PUT specs, JSON schemas, headers, status codes, and error bodies.
+  3. `docs/ARCHITECTURE.md` updated with data flow diagrams and Mermaid sequence diagrams (`Screen` → `ViewModel` → `Repository` → `API`).
+  4. `docs/DECISIONS.md` updated with Day 6 design decisions.
+  5. `docs/CURRENT_STATUS.md` updated and ready for Trainer Approval.
 
-## Implementation sequence (Day 4, after approval)
-1. Confirm clean working tree and create/use feature/task-list.
-2. Recheck approved requirements, architecture and unresolved trainer decisions.
-3. Inspect existing Activity/layout and choose the smallest consistent UI change.
-4. Add task model and repository boundary with in-memory implementation.
-5. Add ViewModel state, add-task validation, and completion handling.
-6. Build Task List UI and connect events/state.
-7. Verify empty state, valid add, invalid add, one-of-many completion, and repeated actions.
-8. Capture build/runtime evidence, review diff, update DEBUGGING_LOG.md and CURRENT_STATUS.md.
-9. Keep scope to Task List screen; do not add durable persistence or backend integration.
+### Day 7: REST API Integration (Upcoming Execution)
+- **Goal:** Integrate REST API task retrieval and enforce 4 mandatory UI states.
+- **Sequence:**
+  1. Create feature branch `feature/api-task-list`.
+  2. Define network data transfer models (`TaskDto`) matching `docs/API_CONTRACT.md`.
+  3. Create `TaskApiService` interface (Retrofit or Mock API Engine).
+  4. Implement `ApiTaskRepository` implementing `TaskRepository` interface with `Result` wrapper and error mapping (`Dispatchers.IO`).
+  5. Update `TaskListUiState` to sealed class or data class modeling `Loading`, `Success(List<Task>)`, `Empty`, and `Error(String)`.
+  6. Update `TaskListViewModel` to execute fetch on `viewModelScope` and publish state via `StateFlow`.
+  7. Update `MainActivity` XML layouts and Kotlin collection using `repeatOnLifecycle` to render all 4 UI states cleanly.
+  8. Write unit tests for `TaskListViewModel` and `ApiTaskRepository`.
 
-## Verification plan
-- Build using the project's configured Gradle task.
-- Run on emulator/device and inspect rendered state.
-- Exercise each acceptance criterion in REQUIREMENTS.md.
-- Add focused ViewModel tests if existing test setup supports them; decide dependencies only after inspecting setup.
-- Record actual results/environment; never claim a check passed unless run.
+### Day 8: Debug Three Defects (4-Step Framework)
+- **Goal:** Diagnose and fix 3 controlled defects using: `Reproduce` → `Observe` → `Isolate` → `Verify`.
+  - Bug 1: Malformed JSON or missing required field crash.
+  - Bug 2: HTTP 500 / network timeout exception handling.
+  - Bug 3: UI not updating after pull-to-refresh or task status change.
 
-## Risks and mitigations
-- Existing project is XML/AppCompat-based: inspect before choosing a UI migration.
-- In-memory state is temporary: state session-only behavior; do not imply persistence.
-- Completion semantics are ambiguous: get trainer decision before implementation.
-- Defer due dates, priority, assignment, sorting/filtering, persistence and backend.
-- Trainer approval is required before Day 4 feature code.
+### Day 9: Test & Deliver
+- **Goal:** Run full unit test suite, generate debug APK, conduct Codex diff review, write `docs/PULL_REQUEST.md`, and submit PR.
 
-## Approval and outcome
-Trainer approval for the Day 4 plan is recorded in `docs/DECISIONS.md`. The Task List feature has been implemented. Current implementation and verification status are tracked in `docs/CURRENT_STATUS.md`.
+---
+
+## File Structure & Map for API Evolution
+
+```
+app/src/main/java/com/example/a1weektaskproject/
+├── data/
+│   ├── model/
+│   │   ├── Task.kt              (Domain Model)
+│   │   ├── TaskPriority.kt      (Domain Priority Enum)
+│   │   └── TaskDto.kt           (API Data Transfer Object)
+│   ├── remote/
+│   │   ├── TaskApiService.kt    (Retrofit / REST Client contract)
+│   │   └── NetworkResult.kt     (Sealed class for Network Result handling)
+│   └── repository/
+│       ├── TaskRepository.kt    (Repository Interface)
+│       ├── ApiTaskRepository.kt (REST API Repository Implementation)
+│       └── InMemoryTaskRepository.kt (Fallback / Baseline Repository)
+├── ui/
+│   ├── state/
+│   │   └── TaskListUiState.kt  (Sealed class modeling Loading, Success, Empty, Error)
+│   ├── TaskListViewModel.kt    (ViewModel owning UI State & Coroutine execution)
+│   ├── TaskAdapter.kt          (ListAdapter with DiffUtil)
+│   └── MainActivity.kt         (View rendering 4 UI states)
+```
+
+---
+
+## Verification Plan
+
+1. **Static Analysis & Lint:** `./gradlew lint` or IDE code analysis.
+2. **Unit Tests:** `./gradlew testDebugUnitTest` verifying `TaskListViewModelTest` and `ApiTaskRepositoryTest` for:
+   - Initial `Loading` state emission.
+   - Successful task list fetch (`Content/Success`).
+   - Empty task list fetch (`Empty`).
+   - Network failure & server error handling (`Error`).
+   - Title trimming and validation.
+3. **Build Verification:** `./gradlew assembleDebug`.
+4. **Manual & UI State Verification:**
+   - Verify `Loading` spinner visibility on fetch.
+   - Verify `Content` state displaying tasks and stat counters.
+   - Verify `Empty` state illustration when no tasks exist.
+   - Verify `Error` banner and "Retry" button behavior when network is disabled.
+
+---
+
+## Risk Assessment & Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Premature coding before trainer approval | Enforce "Day 6 is planning only" rule in `.cursor/rules/bootcamp.mdc` and `AGENTS.md`. |
+| Unhandled network exceptions crashing app | Wrap repository network calls in `runCatching` or try-catch block mapping to `Result.Error`. |
+| Threading violations (Network on Main thread) | Explicitly dispatch repository coroutines on `Dispatchers.IO`. |
+| Memory leaks / state loss across rotation | State published via `StateFlow` in ViewModel; collected using `repeatOnLifecycle`. |

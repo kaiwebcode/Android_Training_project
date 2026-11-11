@@ -1,38 +1,140 @@
-# Task List Architecture
+# Employee Task Manager — Architecture & Data Flow Specification
 
-## Proposed flow
+## 1. System Overview
+The Employee Task Manager app follows Android's recommended Unidirectional Data Flow (UDF) pattern within Model-View-ViewModel (MVVM) architecture.
+
+```
+┌───────────────────────────┐
+│     UI Layer (View)       │  renders TaskListUiState
+│       MainActivity        │ ◄──────────────────────┐
+└─────────────┬─────────────┘                        │
+              │ user actions                         │ StateFlow<TaskListUiState>
+              ▼                                      │
+┌───────────────────────────┐                        │
+│   ViewModel (State Owner) │                        │
+│     TaskListViewModel     │────────────────────────┘
+└─────────────┬─────────────┘
+              │ coroutines (Dispatchers.IO)
+              ▼
+┌───────────────────────────┐
+│     Repository Layer      │  maps TaskDto -> Task
+│     ApiTaskRepository     │
+└─────────────┬─────────────┘
+              │ Retrofit / OkHttp
+              ▼
+┌───────────────────────────┐
+│      Network / API        │  GET /tasks
+│  TaskApiService (REST API) │
+└───────────────────────────┘
+```
+
+---
+
+## 2. High-Level System Flowchart
+
 ~~~mermaid
 flowchart LR
-    U[Employee] -->|tap / enter title| S[TaskListScreen]
-    S -->|Add task or complete task| V[TaskListViewModel]
-    V -->|validate + update screen state| V
-    V -->|read / add / complete| R[TaskRepository]
-    R -->|task data| M[InMemoryTaskRepository]
-    M -->|session-only list| R
-    R -->|updated tasks| V
-    V -->|immutable TaskListUiState| S
-    M -. future implementation .-> P[(Persistent storage)]
+    U[Employee] -->|Interact / Tap Retry| S[MainActivity / UI]
+    S -->|User Intents| V[TaskListViewModel]
+    V -->|viewModelScope / Dispatchers.IO| R[ApiTaskRepository]
+    R -->|HTTPS GET /tasks| API[TaskApiService / REST API]
+    API -->|JSON Response / HTTP Status| R
+    R -->|Result.Success / Result.Error| V
+    V -->|StateFlow TaskListUiState| S
 ~~~
 
-## Components and responsibilities
-- TaskListScreen displays list, empty state, add controls and completion status. It renders state and emits intent; it does not own business data.
-- TaskListViewModel owns screen state, validates titles, translates user events into repository calls, and publishes updated state.
-- TaskRepository abstracts task reads and writes so screen logic does not depend on storage details.
-- InMemoryTaskRepository stores tasks only for the current app session. It is not durable storage.
-- Task represents identity, title and completion status.
-- Persistent storage is a future replacement behind the repository boundary; it is out of scope for Day 4's first feature.
+---
 
-## Connection explanation
-1. Employee interacts with TaskListScreen.
-2. Screen forwards add or complete intent to TaskListViewModel.
-3. ViewModel validates input and asks TaskRepository to perform the operation.
-4. Repository delegates to the in-memory implementation.
-5. Updated task data returns through the repository to the ViewModel.
-6. ViewModel publishes new immutable screen state; the screen renders it.
-7. Future storage can replace the in-memory repository without making the screen depend directly on a database.
+## 3. End-to-End Sequence Diagram (Tracing 4 UI States)
 
-## State and lifecycle
-The ViewModel is the source of truth for screen state. The first version is in-memory only and does not promise survival after process death or app restart. Keep the repository API simple until durable storage is approved.
+~~~mermaid
+sequenceDiagram
+    autonumber
+    actor Employee as Employee / UI (MainActivity)
+    participant VM as TaskListViewModel
+    participant Repo as ApiTaskRepository
+    participant API as TaskApiService (REST API)
 
-## Status
-Trainer approved this architecture for the Day 4 Task List implementation. The app uses Kotlin, AppCompat Activity, XML layouts, RecyclerView, ViewModel, and an in-memory repository. See `docs/DECISIONS.md` and `docs/CURRENT_STATUS.md` for approval and implementation status.
+    Employee->>VM: Screen Launch / Retry Tap / Refresh
+    VM->>VM: Emit TaskListUiState.Loading
+    VM-->>Employee: Render Loading View (ProgressBar)
+    
+    VM->>Repo: getTasks() [Dispatchers.IO]
+    Repo->>API: GET /tasks
+    
+    alt Case 1: 200 OK (Non-Empty Task List)
+        API-->>Repo: 200 OK [TaskDto...]
+        Repo->>Repo: Map TaskDto items -> Domain Task models
+        Repo-->>VM: Result.Success(List<Task>)
+        VM->>VM: Emit TaskListUiState.Content(tasks, stats)
+        VM-->>Employee: Render Task RecyclerView & Summary Cards
+        
+    else Case 2: 200 OK (Empty Array [])
+        API-->>Repo: 200 OK []
+        Repo-->>VM: Result.Success(emptyList())
+        VM->>VM: Emit TaskListUiState.Empty
+        VM-->>Employee: Render Empty State View ("No tasks assigned")
+        
+    else Case 3: HTTP Error (4xx / 5xx) or Network Exception (Offline/Timeout)
+        API-->>Repo: 500 Server Error / SocketTimeoutException / UnknownHostException
+        Repo->>Repo: Catch Exception & Map to UserFriendly Error
+        Repo-->>VM: Result.Error(Exception)
+        VM->>VM: Emit TaskListUiState.Error(errorMessage)
+        VM-->>Employee: Render Error View Banner & "Retry" Button
+    end
+~~~
+
+---
+
+## 4. Components & Responsibilities
+
+### 4.1 UI Layer (`MainActivity`)
+- Displays screen layout (`activity_main.xml`).
+- Observes `TaskListViewModel.uiState` within `lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { ... } }`.
+- Swaps layout visibility between 4 distinct containers:
+  - `loadingLayout` (ProgressBar)
+  - `contentLayout` (RecyclerView + Stat Cards)
+  - `emptyLayout` (Empty illustration + text)
+  - `errorLayout` (Error banner + Retry button)
+- Forwards user click events (Add Task, Complete Task, Retry) to ViewModel.
+
+### 4.2 ViewModel (`TaskListViewModel`)
+- Retains screen state across configuration changes (e.g. rotation).
+- Exposes `val uiState: StateFlow<TaskListUiState>`.
+- Executes background data fetching using `viewModelScope.launch(Dispatchers.IO)`.
+- Validates task creation inputs (trims titles, checks non-empty).
+- Translates Repository `Result` domain models into explicit `TaskListUiState` instances.
+
+### 4.3 Domain State (`TaskListUiState`)
+Represented as a sealed interface/class hierarchy:
+- `TaskListUiState.Loading`: Indicates an active fetch is in progress.
+- `TaskListUiState.Content(val tasks: List<Task>, val totalCount: Int, val completedCount: Int, val pendingCount: Int)`: Indicates successful data retrieval with non-empty list.
+- `TaskListUiState.Empty`: Indicates successful retrieval with zero tasks.
+- `TaskListUiState.Error(val message: String)`: Indicates fetch failure due to network or server issues.
+
+### 4.4 Repository Layer (`ApiTaskRepository`)
+- Implements `TaskRepository` interface.
+- Acts as single source of truth for task data.
+- Handles threading via Kotlin Coroutines (`withContext(Dispatchers.IO)`).
+- Converts DTO network models (`TaskDto`) into domain models (`Task`).
+- Catches network/parsing exceptions and wraps outcomes in a sealed `Result<T>` class (`Result.Success` or `Result.Error`).
+
+### 4.5 Network Service (`TaskApiService`)
+- Retrofit interface defining REST endpoints (`GET /tasks`, `POST /tasks`, `PUT /tasks/{id}/complete`).
+- Serializes/deserializes JSON payloads via Moshi or Kotlinx.Serialization.
+
+---
+
+## 5. Threading & Concurrency Architecture
+
+| Layer | Dispatcher / Scope | Strategy |
+|---|---|---|
+| View (`MainActivity`) | `lifecycleScope` | Lifecycle-aware flow collection (`repeatOnLifecycle(STARTED)`) |
+| ViewModel (`TaskListViewModel`) | `viewModelScope` | Manages async state updates; publishes via `StateFlow` |
+| Repository (`ApiTaskRepository`) | `Dispatchers.IO` | Offloads blocking I/O and network requests |
+| Network (`TaskApiService`) | Suspend functions | Asynchronous network execution managed by OkHttp/Retrofit thread pool |
+
+---
+
+## 6. Status & Approval
+Day 6 Architecture & Sequence Specifications complete. Ready for Trainer Review and Approval recorded in `docs/DECISIONS.md`.
