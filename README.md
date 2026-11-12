@@ -10,8 +10,8 @@ Project: **Employee Task Manager** (Kotlin Android).
 | Day | Focus | Status | Deliverables / Artifacts |
 |---|---|---|---|
 | **Mon (Day 5)** | Configure AI Agents & Handoff Lab | **Complete** | [`AGENTS.md`](AGENTS.md), [`.cursor/rules/bootcamp.mdc`](.cursor/rules/bootcamp.mdc), [`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md), [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) |
-| **Tue (Day 6)** | Plan MVVM + REST API Integration | **Complete (Planning Only)** | [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/diagrams/TASK_LIST_ARCHITECTURE.md`](docs/diagrams/TASK_LIST_ARCHITECTURE.md), [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md), [`docs/CODEX_REVIEW.md`](docs/CODEX_REVIEW.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
-| **Wed (Day 7)** | REST API Integration | **Next (Awaiting Trainer Approval)** | Retrofit/Mock REST API, `ApiTaskRepository`, 4 UI States (`Loading`, `Content`, `Empty`, `Error`) |
+| **Tue (Day 6)** | Plan MVVM + REST API Integration | **Complete** | [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/diagrams/TASK_LIST_ARCHITECTURE.md`](docs/diagrams/TASK_LIST_ARCHITECTURE.md), [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md), [`docs/CODEX_REVIEW.md`](docs/CODEX_REVIEW.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
+| **Wed (Day 7)** | REST API Integration | **Complete** | Retrofit/OkHttp REST Client, `TaskDto`, `ApiTaskRepository`, 4 UI States (`Loading`, `Content`, `Empty`, `Error`), `TaskDetailsActivity` integration |
 | **Thu (Day 8)** | Debug 3 Defects | Scheduled | 4-step framework (`Reproduce` ➔ `Observe` ➔ `Isolate` ➔ `Verify`) |
 | **Fri (Day 9)** | Test & Deliver | Scheduled | ViewModel & Repository unit tests, APK build, Codex diff review, PR submission |
 | **Sat (Nov 14)**| Revision & Demo | Scheduled | Live demonstration & oral defense |
@@ -24,16 +24,17 @@ Project: **Employee Task Manager** (Kotlin Android).
 - **Build System:** AGP 9.5.0, Android SDK 37 (minSdk 24), Java 25 (JBR)
 - **Architecture:** MVVM (Model-View-ViewModel) with Unidirectional Data Flow (UDF)
 - **UI Framework:** Android Native XML Views, `AppCompatActivity`, `MaterialComponents`, `RecyclerView` with `ListAdapter` & `DiffUtil`
-- **State Management:** `ViewModel` publishing `TaskListUiState` via `StateFlow` collected inside `repeatOnLifecycle`
-- **Data Layer:** `TaskRepository` interface abstracted from concrete storage (`InMemoryTaskRepository` baseline evolving to `ApiTaskRepository`)
+- **State Management:** `ViewModel` publishing sealed `TaskListUiState` via `StateFlow` collected inside `repeatOnLifecycle`
+- **Data Layer:** `TaskRepository` interface implemented by `ApiTaskRepository` (Retrofit REST API client) with `InMemoryTaskRepository` fallback
 
 ---
 
 ## Verification & Test Evidence
 
 - **Build Verification:** `./gradlew assembleDebug` — **BUILD SUCCESSFUL**
-- **Unit Test Suite:** `./gradlew testDebugUnitTest` — **7 PASSED, 0 SKIPPED, 0 FAILED**
-  - `TaskListViewModelTest`: Tests initial empty state, valid task addition, title trimming, blank title error emission, state emission, and task completion flow.
+- **Unit Test Suite:** `./gradlew testDebugUnitTest` — **9 PASSED, 0 SKIPPED, 0 FAILED**
+  - `TaskListViewModelTest`: Tests initial loading, content success, empty state, network failure state, valid task addition, title trimming, and task completion.
+  - `ApiTaskRepositoryTest`: Tests API success mapping, network `IOException` mapping, and HTTP 500 error mapping.
 
 ---
 

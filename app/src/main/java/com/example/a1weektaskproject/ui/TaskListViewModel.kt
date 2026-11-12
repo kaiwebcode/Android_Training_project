@@ -2,86 +2,138 @@ package com.example.a1weektaskproject.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.a1weektaskproject.data.InMemoryTaskRepository
-import com.example.a1weektaskproject.data.Task
+import androidx.lifecycle.viewModelScope
+import com.example.a1weektaskproject.data.ApiTaskRepository
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.data.TaskRepository
+import com.example.a1weektaskproject.data.remote.NetworkResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 class TaskListViewModel(
-    private val repository: TaskRepository = InMemoryTaskRepository.getInstance()
+    private val repository: TaskRepository = ApiTaskRepository.getInstance()
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TaskListUiState())
+    private val _uiState = MutableStateFlow<TaskListUiState>(TaskListUiState.Loading)
     val uiState: StateFlow<TaskListUiState> = _uiState.asStateFlow()
 
     init {
-        refreshTasks()
+        loadTasks()
+    }
+
+    fun loadTasks() {
+        _uiState.value = TaskListUiState.Loading
+        viewModelScope.launch {
+            when (val result = repository.getTasks()) {
+                is NetworkResult.Success -> {
+                    val tasks = result.data
+                    if (tasks.isEmpty()) {
+                        _uiState.value = TaskListUiState.Empty
+                    } else {
+                        val total = tasks.size
+                        val completed = tasks.count { it.isCompleted }
+                        val pending = total - completed
+                        _uiState.value = TaskListUiState.Content(
+                            tasks = tasks,
+                            totalCount = total,
+                            completedCount = completed,
+                            pendingCount = pending
+                        )
+                    }
+                }
+                is NetworkResult.Error -> {
+                    _uiState.value = TaskListUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun retryFetch() {
+        loadTasks()
     }
 
     fun addTask(rawTitle: String, description: String = "", priority: TaskPriority = TaskPriority.MEDIUM) {
         val trimmedTitle = rawTitle.trim()
 
         if (trimmedTitle.isEmpty()) {
-            _uiState.update { currentState ->
-                currentState.copy(errorMessage = "Task title cannot be empty")
+            val currentState = _uiState.value
+            if (currentState is TaskListUiState.Content) {
+                _uiState.value = currentState.copy(validationError = "Task title cannot be empty")
             }
             return
         }
 
-        repository.addTask(trimmedTitle, description.trim(), priority)
-        refreshTasks()
+        viewModelScope.launch {
+            repository.addTask(trimmedTitle, description.trim(), priority)
+            loadTasks()
+        }
     }
 
     fun completeTask(id: String) {
-        val task = repository.getTaskById(id)
-        if (task != null && !task.isCompleted) {
-            repository.completeTask(id)
-            refreshTasks(newlyCompleted = repository.getTaskById(id))
+        val taskBefore = repository.getTaskById(id)
+        val wasIncomplete = taskBefore != null && !taskBefore.isCompleted
+
+        viewModelScope.launch {
+            val result = repository.completeTask(id)
+            if (result is NetworkResult.Success) {
+                val updatedTask = result.data
+                val currentTasksRes = repository.getTasks()
+                val currentTasks = if (currentTasksRes is NetworkResult.Success) currentTasksRes.data else emptyList()
+
+                val total = currentTasks.size
+                val completed = currentTasks.count { it.isCompleted }
+                val pending = total - completed
+
+                _uiState.value = TaskListUiState.Content(
+                    tasks = currentTasks,
+                    totalCount = total,
+                    completedCount = completed,
+                    pendingCount = pending,
+                    newlyCompletedTask = if (wasIncomplete && updatedTask.isCompleted) updatedTask else null
+                )
+            }
         }
     }
 
     fun toggleComplete(id: String) {
-        val task = repository.getTaskById(id)
-        val wasIncomplete = task != null && !task.isCompleted
-        repository.toggleComplete(id)
-        val updatedTask = repository.getTaskById(id)
-        refreshTasks(newlyCompleted = if (wasIncomplete && updatedTask?.isCompleted == true) updatedTask else null)
-    }
+        val taskBefore = repository.getTaskById(id)
+        val wasIncomplete = taskBefore != null && !taskBefore.isCompleted
 
-    fun clearErrorMessage() {
-        if (_uiState.value.errorMessage != null) {
-            _uiState.update { currentState ->
-                currentState.copy(errorMessage = null)
+        viewModelScope.launch {
+            val result = repository.toggleComplete(id)
+            if (result is NetworkResult.Success) {
+                val updatedTask = result.data
+                val currentTasksRes = repository.getTasks()
+                val currentTasks = if (currentTasksRes is NetworkResult.Success) currentTasksRes.data else emptyList()
+
+                val total = currentTasks.size
+                val completed = currentTasks.count { it.isCompleted }
+                val pending = total - completed
+
+                _uiState.value = TaskListUiState.Content(
+                    tasks = currentTasks,
+                    totalCount = total,
+                    completedCount = completed,
+                    pendingCount = pending,
+                    newlyCompletedTask = if (wasIncomplete && updatedTask.isCompleted) updatedTask else null
+                )
             }
         }
     }
 
     fun dismissCompletionDialog() {
-        _uiState.update { currentState ->
-            currentState.copy(newlyCompletedTask = null)
+        val currentState = _uiState.value
+        if (currentState is TaskListUiState.Content) {
+            _uiState.value = currentState.copy(newlyCompletedTask = null)
         }
     }
 
-    fun refreshTasks(newlyCompleted: Task? = null) {
-        val currentTasks = repository.getTasks()
-        val total = currentTasks.size
-        val completed = currentTasks.count { it.isCompleted }
-        val pending = total - completed
-
-        _uiState.update { currentState ->
-            currentState.copy(
-                tasks = currentTasks,
-                totalCount = total,
-                completedCount = completed,
-                pendingCount = pending,
-                isEmptyStateVisible = currentTasks.isEmpty(),
-                errorMessage = null,
-                newlyCompletedTask = newlyCompleted
-            )
+    fun clearValidationError() {
+        val currentState = _uiState.value
+        if (currentState is TaskListUiState.Content) {
+            _uiState.value = currentState.copy(validationError = null)
         }
     }
 

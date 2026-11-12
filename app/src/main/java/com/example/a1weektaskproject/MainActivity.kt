@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.ui.TaskAdapter
+import com.example.a1weektaskproject.ui.TaskListUiState
 import com.example.a1weektaskproject.ui.TaskListViewModel
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
@@ -27,7 +28,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.launch
 
 /**
- * Main Activity for Employee Task Manager matching the target UI design.
+ * Main Activity for Employee Task Manager rendering all 4 UI states (Loading, Content, Empty, Error).
  */
 class MainActivity : AppCompatActivity() {
 
@@ -38,8 +39,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var completedCountTextView: TextView
     private lateinit var pendingCountTextView: TextView
 
+    private lateinit var loadingStateView: View
     private lateinit var emptyStateView: View
     private lateinit var emptyStateAddButton: MaterialButton
+    private lateinit var errorStateView: View
+    private lateinit var errorMessageTextView: TextView
+    private lateinit var retryButton: MaterialButton
     private lateinit var taskRecyclerView: RecyclerView
     private lateinit var addFabButton: FloatingActionButton
 
@@ -55,7 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        viewModel.refreshTasks()
+        viewModel.loadTasks()
     }
 
     private fun initViews() {
@@ -63,8 +68,12 @@ class MainActivity : AppCompatActivity() {
         completedCountTextView = findViewById(R.id.completedCountTextView)
         pendingCountTextView = findViewById(R.id.pendingCountTextView)
 
+        loadingStateView = findViewById(R.id.loadingStateView)
         emptyStateView = findViewById(R.id.emptyStateView)
         emptyStateAddButton = findViewById(R.id.emptyStateAddButton)
+        errorStateView = findViewById(R.id.errorStateView)
+        errorMessageTextView = findViewById(R.id.errorMessageTextView)
+        retryButton = findViewById(R.id.retryButton)
         taskRecyclerView = findViewById(R.id.taskRecyclerView)
         addFabButton = findViewById(R.id.addFabButton)
     }
@@ -77,6 +86,11 @@ class MainActivity : AppCompatActivity() {
             onItemClick = { task ->
                 val intent = Intent(this, TaskDetailsActivity::class.java).apply {
                     putExtra(TaskDetailsActivity.EXTRA_TASK_ID, task.id)
+                    putExtra(TaskDetailsActivity.EXTRA_TASK_TITLE, task.title)
+                    putExtra(TaskDetailsActivity.EXTRA_TASK_DESC, task.description)
+                    putExtra(TaskDetailsActivity.EXTRA_TASK_PRIORITY, task.priority.name)
+                    putExtra(TaskDetailsActivity.EXTRA_TASK_STATUS, task.isCompleted)
+                    putExtra(TaskDetailsActivity.EXTRA_TASK_DUE_DATE, task.dueDate)
                 }
                 startActivity(intent)
             }
@@ -93,32 +107,56 @@ class MainActivity : AppCompatActivity() {
         emptyStateAddButton.setOnClickListener {
             showAddTaskBottomSheet()
         }
+
+        retryButton.setOnClickListener {
+            viewModel.retryFetch()
+        }
     }
 
     private fun observeUiState() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { state ->
-                    // Update Task List
-                    taskAdapter.submitList(state.tasks)
+                    when (state) {
+                        is TaskListUiState.Loading -> {
+                            loadingStateView.visibility = View.VISIBLE
+                            emptyStateView.visibility = View.GONE
+                            errorStateView.visibility = View.GONE
+                            taskRecyclerView.visibility = View.GONE
+                        }
+                        is TaskListUiState.Content -> {
+                            loadingStateView.visibility = View.GONE
+                            emptyStateView.visibility = View.GONE
+                            errorStateView.visibility = View.GONE
+                            taskRecyclerView.visibility = View.VISIBLE
 
-                    // Update Top Stats Summary Counters
-                    totalCountTextView.text = state.totalCount.toString()
-                    completedCountTextView.text = state.completedCount.toString()
-                    pendingCountTextView.text = state.pendingCount.toString()
+                            taskAdapter.submitList(state.tasks)
+                            totalCountTextView.text = state.totalCount.toString()
+                            completedCountTextView.text = state.completedCount.toString()
+                            pendingCountTextView.text = state.pendingCount.toString()
 
-                    // Toggle Empty State vs RecyclerView
-                    if (state.isEmptyStateVisible) {
-                        emptyStateView.visibility = View.VISIBLE
-                        taskRecyclerView.visibility = View.GONE
-                    } else {
-                        emptyStateView.visibility = View.GONE
-                        taskRecyclerView.visibility = View.VISIBLE
-                    }
+                            state.newlyCompletedTask?.let {
+                                showTaskCompletedDialog()
+                            }
+                        }
+                        is TaskListUiState.Empty -> {
+                            loadingStateView.visibility = View.GONE
+                            emptyStateView.visibility = View.VISIBLE
+                            errorStateView.visibility = View.GONE
+                            taskRecyclerView.visibility = View.GONE
 
-                    // Show Completion Dialog popup if a task was just completed
-                    state.newlyCompletedTask?.let {
-                        showTaskCompletedDialog()
+                            totalCountTextView.text = "0"
+                            completedCountTextView.text = "0"
+                            pendingCountTextView.text = "0"
+                        }
+                        is TaskListUiState.Error -> {
+                            loadingStateView.visibility = View.GONE
+                            emptyStateView.visibility = View.GONE
+                            errorStateView.visibility = View.VISIBLE
+                            taskRecyclerView.visibility = View.GONE
+
+                            errorMessageTextView.text = state.message
+                        }
                     }
                 }
             }

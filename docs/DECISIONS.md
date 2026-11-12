@@ -15,26 +15,27 @@
 
 ---
 
-## Day 6 Planning Decisions (Design & REST API Architecture)
+## Day 6 & Day 7 Architecture & REST API Integration Decisions
 
 | Topic | Decision | Status | Rationale / Date |
 |---|---|---|---|
-| Day 6 Scope | Planning & Specifications Only (No Feature Code) | Approved | Enforce Day 6 design rules per PPT slide 7 & AGENTS.md |
-| REST API Contract | Defined GET /tasks, POST /tasks, PUT /tasks/{id}/complete in `docs/API_CONTRACT.md` | Pending Trainer Sign-off | Establishes clear JSON schema, status codes (200, 400, 500), and error payloads |
-| Mandatory UI States | Sealed class `TaskListUiState` supporting 4 mandatory states (`Loading`, `Content/Success`, `Empty`, `Error`) | Pending Trainer Sign-off | Ensures complete user feedback for all network lifecycle outcomes |
-| Network Architecture | `TaskApiService` -> `ApiTaskRepository` -> `TaskListViewModel` -> `MainActivity` | Pending Trainer Sign-off | Enforces MVVM unidirectional data flow and clean repository abstraction |
-| Data Layer Mapping | Repository maps network `TaskDto` to domain `Task` model and wraps in `Result<T>` | Pending Trainer Sign-off | Decouples UI & domain logic from API response structures |
-| Threading & Concurrency | `viewModelScope` with `Dispatchers.IO` for background network requests | Pending Trainer Sign-off | Offloads network I/O from Main UI thread safely |
-| Retry Mechanism | Actionable "Retry" button on `Error` UI state to re-trigger API call | Pending Trainer Sign-off | Restores application functionality cleanly after network drop |
+| REST API Contract | Defined GET /tasks, POST /tasks, PUT /tasks/{id}/complete in `docs/API_CONTRACT.md` and integrated endpoint `https://gorest.co.in/public/v3/tasks` | Approved | Establishes clear JSON schema, status codes (200, 400, 500), and error payloads |
+| Mandatory UI States | Sealed interface `TaskListUiState` supporting 4 mandatory states (`Loading`, `Content/Success`, `Empty`, `Error`) | Approved | Ensures complete user feedback for all network lifecycle outcomes |
+| Network Architecture | `TaskApiService` -> `ApiTaskRepository` -> `TaskListViewModel` -> `MainActivity` | Approved | Enforces MVVM unidirectional data flow and clean repository abstraction |
+| Data Layer Mapping | Repository maps network `TaskDto` to domain `Task` model and wraps in `NetworkResult<T>` | Approved | Decouples UI & domain logic from API response structures |
+| Threading & Concurrency | `viewModelScope` with `Dispatchers.IO` for background network requests and test dispatcher injection | Approved | Offloads network I/O from Main UI thread safely and allows fast deterministic testing |
+| Exception Mapping | Human-readable error messages for `IOException`, `SocketTimeoutException`, `UnknownHostException`, `HttpException` | Approved | Prevents technical stack trace leaks to user interface |
+| Retry Mechanism | Actionable "Retry" button on `Error` UI state to re-trigger API call | Approved | Restores application functionality cleanly after network drop |
 
 ---
 
 ## Session Notes & Trainer Sign-off Record
 - **Day 5:** Agent setup, context preservation, handoff lab complete. Codex code risk review recorded in `docs/CODEX_REVIEW.md`.
-- **Day 6:** Planning Day deliverables completed:
-  - `docs/REQUIREMENTS.md` updated with API user stories and 4 UI states.
-  - `docs/API_CONTRACT.md` created with full JSON schema and HTTP status codes.
-  - `docs/DEVELOPMENT_PLAN.md` updated with Day 6 design & Day 7 execution sequence.
-  - `docs/ARCHITECTURE.md` updated with Mermaid sequence and flow diagrams.
-  - `docs/diagrams/TASK_LIST_ARCHITECTURE.md` updated with Mermaid diagrams.
-  - Day 6 planning artifacts ready for **Trainer Approval** before writing feature code on Day 7.
+- **Day 6:** Planning Day deliverables completed (`docs/REQUIREMENTS.md`, `docs/API_CONTRACT.md`, `docs/DEVELOPMENT_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/CODEX_REVIEW.md`).
+- **Day 7:** REST API Integration Complete:
+  - Retrofit + Gson + OkHttp network client implemented.
+  - `TaskDto` -> `Task` mapping implemented.
+  - `ApiTaskRepository` with error mapping & dispatcher injection implemented.
+  - Sealed `TaskListUiState` modeling `Loading`, `Content`, `Empty`, `Error` implemented.
+  - `MainActivity` rendering all 4 UI states with retry action implemented.
+  - Unit tests updated and 9/9 tests passed. Build verified.

@@ -76,7 +76,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Hello, Kaif! 👋"
+                        android:text="Hello, Employee! 👋"
                         android:textColor="#FFFFFF"
                         android:textSize="22sp"
                         android:textStyle="bold" />
@@ -156,7 +156,7 @@
                             android:id="@+id/totalCountTextView"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="4"
+                            android:text="0"
                             android:textColor="#2D3436"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -211,7 +211,7 @@
                             android:id="@+id/completedCountTextView"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="1"
+                            android:text="0"
                             android:textColor="#2D3436"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -266,7 +266,7 @@
                             android:id="@+id/pendingCountTextView"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="3"
+                            android:text="0"
                             android:textColor="#2D3436"
                             android:textSize="16sp"
                             android:textStyle="bold" />
@@ -276,14 +276,38 @@
 
         </LinearLayout>
 
-        <!-- Tasks Content Area -->
+        <!-- Tasks Content Area Container Handling 4 UI States -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="12dp"
             android:layout_weight="1">
 
-            <!-- Empty State View (Screen 3 in Screenshot) -->
+            <!-- 1. LOADING UI STATE -->
+            <LinearLayout
+                android:id="@+id/loadingStateView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:indeterminateTint="#6C5CE7" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Loading tasks from server..."
+                    android:textColor="#636E72"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 2. EMPTY UI STATE -->
             <LinearLayout
                 android:id="@+id/emptyStateView"
                 android:layout_width="match_parent"
@@ -303,7 +327,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="24dp"
-                    android:text="No Tasks Yet!"
+                    android:text="No Tasks Assigned!"
                     android:textColor="#2D3436"
                     android:textSize="22sp"
                     android:textStyle="bold" />
@@ -313,7 +337,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text="Add your first task to get started\nand stay productive."
+                    android:text="You're all caught up! Add a new task\nto stay productive."
                     android:textColor="#636E72"
                     android:textSize="14sp" />
 
@@ -331,7 +355,57 @@
 
             </LinearLayout>
 
-            <!-- Tasks List RecyclerView -->
+            <!-- 3. ERROR UI STATE -->
+            <LinearLayout
+                android:id="@+id/errorStateView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:contentDescription="Error Icon"
+                    android:src="@drawable/ic_clipboard"
+                    app:tint="#D63031" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="Unable to Load Tasks"
+                    android:textColor="#2D3436"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/errorMessageTextView"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Network connection failed. Please check your internet connection and try again."
+                    android:textColor="#636E72"
+                    android:textSize="14sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/retryButton"
+                    android:layout_width="180dp"
+                    android:layout_height="50dp"
+                    android:layout_marginTop="24dp"
+                    android:backgroundTint="#6C5CE7"
+                    android:text="Retry"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="16dp" />
+
+            </LinearLayout>
+
+            <!-- 4. CONTENT / SUCCESS UI STATE (Tasks List RecyclerView) -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/taskRecyclerView"
                 android:layout_width="match_parent"
