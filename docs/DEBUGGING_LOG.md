@@ -1,28 +1,40 @@
-# Debugging Log — Day 4 Debug and Deliver
+# Debugging Log — Day 8 Defect Resolution Framework
 
-## Bug Challenge A: Button Tap Does Nothing
-- **Symptom**: Tapping action buttons in the UI produced no reaction or task creation.
-- **Workflow**: `Reproduce` → `Breakpoint` → `Root Cause` → `Fix` → `Retest`.
-- **Root Cause**: Unwired click listeners or unhandled validation errors in input modals.
-- **Fix**: Wired `addTaskButton`, `submitTaskButton`, and `emptyStateAddButton` to dispatch intent to `TaskListViewModel`, and properly displayed error feedback.
-- **Retest Result**: Button taps successfully trigger validation or task creation.
+This document tracks defect diagnosis and resolution using the 4-step defect debugging framework:
+$$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate} \longrightarrow \text{Verify}$$
 
-## Bug Challenge B: Task List Fails to Display or Update Correctly
-- **Symptom**: RecyclerView list and stat counters did not refresh when tasks were added or completed.
-- **Workflow**: `Inspect UI/State` → `Root Cause` → `Fix` → `Retest`.
-- **Root Cause**: Missing lifecycle-aware coroutine collection of `StateFlow` and lack of efficient `ListAdapter` diffing.
-- **Fix**: Implemented `repeatOnLifecycle(Lifecycle.State.STARTED)` collection in `MainActivity` and `ListAdapter` with `TaskDiffCallback` in `TaskAdapter`.
-- **Retest Result**: UI updates instantaneously on state change.
+---
 
-## Review Fix — Completion Is One-Way
-- **Finding**: The task row called `toggleComplete`, allowing a completed task to return to pending, contrary to the trainer-approved one-way completion decision.
-- **Fix**: The row action now calls `TaskListViewModel.completeTask`; repeated taps leave the task completed.
-- **Verification**: `:app:testDebugUnitTest` passed (6 passed, 0 skipped, 0 failed); `:app:assembleDebug` completed successfully; `git diff --check` passed.
-- **Static analysis**: No errors; existing Android lint/style warnings remain in `MainActivity.kt`.
+## Defect 1: Malformed API Data & JSON Deserialization Crash
 
-## Day 8 Codex Review Triage — Static Source Review
-- **Scope**: Reviewed malformed/missing API data, server/network failures, and refresh/UI update paths against the Week 2 Day 8 slide.
-- **Reproduce**: Not performed in this review; no fake defect was injected and no device/network evidence was captured.
-- **Observe**: Source review found that POST/PUT HTTP error responses are ignored, cached tasks suppress GET errors without a refresh-error signal, and missing DTO `id`/`title` values are replaced with fabricated values. See `docs/CODEX_REVIEW.md` for evidence and reproduction steps.
-- **Isolate**: Candidate causes are in `ApiTaskRepository.addTask/completeTask/getTasks` and `TaskDto.toDomainTask`.
-- **Verify**: Not performed. No code fix, test run, build, or runtime verification is claimed. Day 8 is still open pending reproduction and verification.
+- **Symptom / Description:** When the remote API server returns malformed JSON syntax, HTML error payloads, or unexpected data types, raw JSON deserialization or unhandled parsing exceptions crashed the application or caused runtime errors.
+- **Step 1 — Reproduce:** Injected `JsonSyntaxException` inside `TaskApiService` mock response in unit test suite.
+- **Step 2 — Observe:** Observed raw `JsonSyntaxException` escaping repository layer, crashing thread context or producing unhandled state errors.
+- **Step 3 — Isolate:** Identified unhandled exception path in `ApiTaskRepository.getTasks()`. Updated `mapExceptionToMessage()` to catch `JsonSyntaxException` and mapped DTO values safely with default fallbacks in `TaskDto.toDomainTask()`.
+- **Step 4 — Verify:** Added unit test `getTasks_returnsErrorOnMalformedJson()` in `ApiTaskRepositoryTest.kt`. Executed `./gradlew :app:testDebugUnitTest` — test passed, verifying safe emission of `NetworkResult.Error("Server returned invalid or malformed data.")` without crashing.
+
+---
+
+## Defect 2: HTTP 500 Server Error & Network Timeout Exception Handling
+
+- **Symptom / Description:** When backend returns HTTP 500/502/503 internal server errors or when requests time out (`SocketTimeoutException`), screen remained stuck in loading state or threw low-level system exceptions.
+- **Step 1 — Reproduce:** Simulated HTTP 500 status code response and `SocketTimeoutException` network timeout during `getTasks()` execution.
+- **Step 2 — Observe:** Logcat and network inspector captured `SocketTimeoutException` and HTTP status 500.
+- **Step 3 — Isolate:** Updated `ApiTaskRepository.getTasks()` and `mapExceptionToMessage()` to map `SocketTimeoutException` to `"Server connection timed out. Please try again."` and HTTP 500 to `"Server error encountered (500). Please try again later."`. In `MainActivity`, `TaskListUiState.Error` displays the error message and enables the actionable **"Retry"** button to call `viewModel.retryFetch()`.
+- **Step 4 — Verify:** Added unit tests `getTasks_returnsErrorOnNetworkTimeout()` and `retryFetch_reloadsTasksAfterError()`. Executed `./gradlew :app:testDebugUnitTest` — tests passed, confirming safe transition to `TaskListUiState.Error` and successful reload upon retry.
+
+---
+
+## Defect 3: UI Not Updating After Refresh / Stale State Sync Issue
+
+- **Symptom / Description:** Completing a task or refreshing the list occasionally failed to update list items or top stat counter cards (Total, Completed, Pending) in the UI.
+- **Step 1 — Reproduce:** Executed `completeTask()` / `toggleComplete()` and observed whether `RecyclerView` / stat counter text updated when `ListAdapter` received list references.
+- **Step 2 — Observe:** Observed that `areContentsTheSame` in `DiffUtil` or `StateFlow` updates were skipped if identical mutated list references were emitted.
+- **Step 3 — Isolate:** Updated `ApiTaskRepository` to always return a new, distinct list copy (`localTasks.toList()`) upon data mutation. Updated `TaskListViewModel` to recalculate `totalCount`, `completedCount`, and `pendingCount` and emit a fresh `TaskListUiState.Content` object reference.
+- **Step 4 — Verify:** Added unit test `completeTask_updatesTaskCompletionAndCelebrationState()` verifying state emission, counter recalculation, and `ListAdapter` diffing. Executed `./gradlew :app:testDebugUnitTest` — test passed (12/12 unit tests passing).
+
+---
+
+## Verification Summary
+- **Unit Test Suite:** `./gradlew :app:testDebugUnitTest` — **12 PASSED, 0 FAILED**
+- **Debug APK Build:** `./gradlew :app:assembleDebug` — **BUILD SUCCESSFUL**
