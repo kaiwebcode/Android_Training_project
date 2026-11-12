@@ -24,9 +24,9 @@ This document serves as the single source of truth for transferring context betw
 
 ## 2. Verification & Test Status
 - **Build Verification:** `./gradlew assembleDebug` — **BUILD SUCCESSFUL**
-- **Unit Tests:** `./gradlew testDebugUnitTest` — **9/9 PASSED**
-  - `TaskListViewModelTest`: Tests initial loading, content success state, empty state emission, network failure error state, task addition, and task completion.
-  - `ApiTaskRepositoryTest`: Tests API success mapping, network `IOException` mapping, and HTTP 500 error mapping.
+- **Unit Tests:** `./gradlew testDebugUnitTest` — **12/12 PASSED**
+  - `TaskListViewModelTest` (6 tests): Tests initial loading, content success state, empty state emission, network failure error state, retry recovery, task addition, and task completion.
+  - `ApiTaskRepositoryTest` (5 tests): Tests API success mapping, malformed JSON (`JsonSyntaxException`) handling, socket timeout handling, network `IOException` mapping, and HTTP 500 error mapping.
 
 ---
 
@@ -36,8 +36,8 @@ Week 2 expands the project from in-memory state to a REST API-backed application
 - **Day 5 (Mon):** Agent Setup & Handoff Lab (`AGENTS.md`, `.cursor/rules/bootcamp.mdc`, `AI_HANDOFF.md`, `CURRENT_STATUS.md`) — **COMPLETE**.
 - **Day 6 (Tue):** Design MVVM + REST API Integration (Planning Only — `REQUIREMENTS.md`, `DEVELOPMENT_PLAN.md`, `ARCHITECTURE.md`, `docs/API_CONTRACT.md`, `docs/CODEX_REVIEW.md`, `docs/DECISIONS.md`) — **COMPLETE**.
 - **Day 7 (Wed):** REST API Integration (`feature/api-task-list`, Retrofit/OkHttp REST API client, `ApiTaskRepository`, StateFlow pipeline, 4 UI state handling in `MainActivity`, `TaskDetailsActivity` integration, 9 unit tests) — **COMPLETE**.
-- **Day 8 (Thu):** Debug 3 Defects (4-step framework: `Reproduce` → `Observe` → `Isolate` → `Verify` for malformed data, HTTP 500/timeout, UI refresh issues) — **NEXT**.
-- **Day 9 (Fri):** Testing & Delivery (ViewModel & Repository unit tests, APK build, Codex diff review, PR submission).
+- **Day 8 (Thu):** Debug 3 Defects (4-step framework: `Reproduce` → `Observe` → `Isolate` → `Verify` for malformed data, HTTP 500/timeout, UI refresh issues) — **COMPLETE**.
+- **Day 9 (Fri):** Testing & Delivery (ViewModel & Repository unit tests, APK build, Codex diff review, PR submission) — **NEXT**.
 - **Sat (Nov 14):** Revision & Demo.
 
 ---
@@ -45,6 +45,6 @@ Week 2 expands the project from in-memory state to a REST API-backed application
 ## 4. Instructions for Resuming AI Agents
 When starting a new session:
 1. Read `AGENTS.md`, `.cursor/rules/bootcamp.mdc`, and `docs/CURRENT_STATUS.md`.
-2. Review this document (`docs/AI_HANDOFF.md`), `docs/API_CONTRACT.md`, and `docs/CODEX_REVIEW.md`.
-3. On Day 8: Apply 4-step defect debugging framework (`Reproduce` → `Observe` → `Isolate` → `Verify`) to diagnose and fix controlled bugs, logging findings in `docs/DEBUGGING_LOG.md`.
+2. Review this document (`docs/AI_HANDOFF.md`), `docs/API_CONTRACT.md`, and `docs/DEBUGGING_LOG.md`.
+3. On Day 9: Finalize `docs/PULL_REQUEST.md`, verify 12/12 unit tests pass, assemble debug APK, and conduct PR diff review.
 4. Verify every change with `./gradlew assembleDebug` and `./gradlew testDebugUnitTest`.

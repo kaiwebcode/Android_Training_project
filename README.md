@@ -12,7 +12,7 @@ Project: **Employee Task Manager** (Kotlin Android).
 | **Mon (Day 5)** | Configure AI Agents & Handoff Lab | **Complete** | [`AGENTS.md`](AGENTS.md), [`.cursor/rules/bootcamp.mdc`](.cursor/rules/bootcamp.mdc), [`docs/AI_HANDOFF.md`](docs/AI_HANDOFF.md), [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) |
 | **Tue (Day 6)** | Plan MVVM + REST API Integration | **Complete** | [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/diagrams/TASK_LIST_ARCHITECTURE.md`](docs/diagrams/TASK_LIST_ARCHITECTURE.md), [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md), [`docs/CODEX_REVIEW.md`](docs/CODEX_REVIEW.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 | **Wed (Day 7)** | REST API Integration | **Complete** | Retrofit/OkHttp REST Client, `TaskDto`, `ApiTaskRepository`, 4 UI States (`Loading`, `Content`, `Empty`, `Error`), `TaskDetailsActivity` integration |
-| **Thu (Day 8)** | Debug 3 Defects | Scheduled | 4-step framework (`Reproduce` ➔ `Observe` ➔ `Isolate` ➔ `Verify`) |
+| **Thu (Day 8)** | Debug 3 Defects | **Complete** | 4-step framework (`Reproduce` ➔ `Observe` ➔ `Isolate` ➔ `Verify`) in [`docs/DEBUGGING_LOG.md`](docs/DEBUGGING_LOG.md) for malformed data, HTTP 500/timeout, and UI state sync |
 | **Fri (Day 9)** | Test & Deliver | Scheduled | ViewModel & Repository unit tests, APK build, Codex diff review, PR submission |
 | **Sat (Nov 14)**| Revision & Demo | Scheduled | Live demonstration & oral defense |
 
@@ -32,9 +32,9 @@ Project: **Employee Task Manager** (Kotlin Android).
 ## Verification & Test Evidence
 
 - **Build Verification:** `./gradlew assembleDebug` — **BUILD SUCCESSFUL**
-- **Unit Test Suite:** `./gradlew testDebugUnitTest` — **9 PASSED, 0 SKIPPED, 0 FAILED**
-  - `TaskListViewModelTest`: Tests initial loading, content success, empty state, network failure state, valid task addition, title trimming, and task completion.
-  - `ApiTaskRepositoryTest`: Tests API success mapping, network `IOException` mapping, and HTTP 500 error mapping.
+- **Unit Test Suite:** `./gradlew testDebugUnitTest` — **12 PASSED, 0 SKIPPED, 0 FAILED**
+  - `TaskListViewModelTest`: Tests initial loading, content success, empty state, network failure state, retry recovery, valid task addition, title trimming, and task completion.
+  - `ApiTaskRepositoryTest`: Tests API success mapping, malformed JSON (`JsonSyntaxException`) handling, socket timeout handling, network `IOException` mapping, and HTTP 500 error mapping.
 
 ---
 

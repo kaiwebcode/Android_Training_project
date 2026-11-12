@@ -82,6 +82,40 @@ class TaskListViewModelTest {
     }
 
     @Test
+    fun retryFetch_reloadsTasksAfterError() = runTest {
+        var callCount = 0
+        val toggleRepo = object : TaskRepository {
+            override suspend fun getTasks(): NetworkResult<List<Task>> {
+                callCount++
+                return if (callCount == 1) {
+                    NetworkResult.Error("Server connection timed out.")
+                } else {
+                    NetworkResult.Success(listOf(Task("TASK-101", "Recovered Task")))
+                }
+            }
+            override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("N/A")
+            override suspend fun completeTask(id: String) = NetworkResult.Error("N/A")
+            override suspend fun toggleComplete(id: String) = NetworkResult.Error("N/A")
+            override fun getTaskById(id: String): Task? = null
+        }
+
+        val testVm = TaskListViewModel(toggleRepo)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 1st load emits Error state
+        assertTrue(testVm.uiState.value is TaskListUiState.Error)
+
+        // Tapping Retry re-executes fetch and succeeds
+        testVm.retryFetch()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(testVm.uiState.value is TaskListUiState.Content)
+        val content = testVm.uiState.value as TaskListUiState.Content
+        assertEquals(1, content.tasks.size)
+        assertEquals("Recovered Task", content.tasks[0].title)
+    }
+
+    @Test
     fun addValidTask_updatesTasksAndCounts() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
         viewModel.addTask("New Task", "Description", TaskPriority.HIGH)
@@ -103,5 +137,7 @@ class TaskListViewModelTest {
         val updatedTask = state.tasks.first { it.id == pendingTask.id }
         assertTrue(updatedTask.isCompleted)
         assertEquals(pendingTask.id, state.newlyCompletedTask?.id)
+        assertEquals(2, state.completedCount)
+        assertEquals(2, state.pendingCount)
     }
 }

@@ -4,6 +4,7 @@ import com.example.a1weektaskproject.data.remote.NetworkResult
 import com.example.a1weektaskproject.data.remote.TaskApiService
 import com.example.a1weektaskproject.data.remote.model.GoRestTaskResponse
 import com.example.a1weektaskproject.data.remote.model.TaskDto
+import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -13,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
 import java.io.IOException
+import java.net.SocketTimeoutException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApiTaskRepositoryTest {
@@ -43,6 +45,44 @@ class ApiTaskRepositoryTest {
         assertEquals("Task 1", tasks[0].title)
         assertEquals(TaskPriority.HIGH, tasks[0].priority)
         assertEquals(true, tasks[1].isCompleted)
+    }
+
+    @Test
+    fun getTasks_returnsErrorOnMalformedJson() = runTest {
+        val malformedApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                throw JsonSyntaxException("Malformed JSON syntax error")
+            }
+
+            override suspend fun createTask(task: TaskDto): Response<TaskDto> = throw JsonSyntaxException("Malformed JSON")
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>): Response<TaskDto> = throw JsonSyntaxException("Malformed JSON")
+        }
+
+        val repository = ApiTaskRepository(malformedApiService, testDispatcher)
+        val result = repository.getTasks()
+
+        assertTrue(result is NetworkResult.Error)
+        val error = result as NetworkResult.Error
+        assertEquals("Server returned invalid or malformed data.", error.message)
+    }
+
+    @Test
+    fun getTasks_returnsErrorOnNetworkTimeout() = runTest {
+        val timeoutApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                throw SocketTimeoutException("Connection timeout")
+            }
+
+            override suspend fun createTask(task: TaskDto): Response<TaskDto> = throw SocketTimeoutException("Connection timeout")
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>): Response<TaskDto> = throw SocketTimeoutException("Connection timeout")
+        }
+
+        val repository = ApiTaskRepository(timeoutApiService, testDispatcher)
+        val result = repository.getTasks()
+
+        assertTrue(result is NetworkResult.Error)
+        val error = result as NetworkResult.Error
+        assertEquals("Server connection timed out. Please try again.", error.message)
     }
 
     @Test

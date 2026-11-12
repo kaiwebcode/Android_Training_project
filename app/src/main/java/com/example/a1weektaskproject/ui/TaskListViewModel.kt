@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.a1weektaskproject.data.ApiTaskRepository
+import com.example.a1weektaskproject.data.DemoScenario
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.data.TaskRepository
 import com.example.a1weektaskproject.data.remote.NetworkResult
@@ -51,6 +52,16 @@ class TaskListViewModel(
     }
 
     fun retryFetch() {
+        if (repository is ApiTaskRepository) {
+            repository.currentDemoScenario = DemoScenario.NORMAL_API
+        }
+        loadTasks()
+    }
+
+    fun setDemoScenario(scenario: DemoScenario) {
+        if (repository is ApiTaskRepository) {
+            repository.currentDemoScenario = scenario
+        }
         loadTasks()
     }
 

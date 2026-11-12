@@ -18,6 +18,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.a1weektaskproject.data.DemoScenario
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.ui.TaskAdapter
 import com.example.a1weektaskproject.ui.TaskListUiState
@@ -39,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var completedCountTextView: TextView
     private lateinit var pendingCountTextView: TextView
 
+    private lateinit var menuIcon: ImageView
     private lateinit var loadingStateView: View
     private lateinit var emptyStateView: View
     private lateinit var emptyStateAddButton: MaterialButton
@@ -64,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
+        menuIcon = findViewById(R.id.menuIcon)
         totalCountTextView = findViewById(R.id.totalCountTextView)
         completedCountTextView = findViewById(R.id.completedCountTextView)
         pendingCountTextView = findViewById(R.id.pendingCountTextView)
@@ -100,6 +103,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        menuIcon.setOnClickListener {
+            showDemoScenarioBottomSheet()
+        }
+
         addFabButton.setOnClickListener {
             showAddTaskBottomSheet()
         }
@@ -161,6 +168,51 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun showDemoScenarioBottomSheet() {
+        val bottomSheet = BottomSheetDialog(this)
+        val dialogView = layoutInflater.inflate(R.layout.dialog_demo_scenario, null)
+        bottomSheet.setContentView(dialogView)
+
+        val btnNormal = dialogView.findViewById<MaterialButton>(R.id.demoNormalApiButton)
+        val btnMalformed = dialogView.findViewById<MaterialButton>(R.id.demoMalformedJsonButton)
+        val btnHttp500 = dialogView.findViewById<MaterialButton>(R.id.demoHttp500Button)
+        val btnTimeout = dialogView.findViewById<MaterialButton>(R.id.demoTimeoutButton)
+        val btnUiSync = dialogView.findViewById<MaterialButton>(R.id.demoUiSyncButton)
+        val btnEmpty = dialogView.findViewById<MaterialButton>(R.id.demoEmptyStateButton)
+
+        btnNormal.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.NORMAL_API)
+            bottomSheet.dismiss()
+        }
+
+        btnMalformed.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.MALFORMED_JSON)
+            bottomSheet.dismiss()
+        }
+
+        btnHttp500.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.HTTP_500_SERVER_ERROR)
+            bottomSheet.dismiss()
+        }
+
+        btnTimeout.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.NETWORK_TIMEOUT)
+            bottomSheet.dismiss()
+        }
+
+        btnUiSync.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.UI_STALE_STATE_SYNC)
+            bottomSheet.dismiss()
+        }
+
+        btnEmpty.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.EMPTY_RESPONSE)
+            bottomSheet.dismiss()
+        }
+
+        bottomSheet.show()
     }
 
     private fun showAddTaskBottomSheet() {
