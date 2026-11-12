@@ -1,5 +1,6 @@
 package com.example.a1weektaskproject.data
 
+import com.example.a1weektaskproject.data.remote.NetworkResult
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -10,18 +11,14 @@ class InMemoryTaskRepository : TaskRepository {
 
     init {
         // Pre-populate initial sample tasks matching the UI design specs
-        addTask("Prepare weekly report", "Review employee performance", TaskPriority.MEDIUM)
-        addTask("Update project documentation", "Check latest changes", TaskPriority.LOW)
-        val teamMeeting = addTask("Team meeting notes", "Share summary with team", TaskPriority.MEDIUM)
-        completeTask(teamMeeting.id)
-        addTask("Fix login issue", "Resolve authentication bug", TaskPriority.HIGH)
+        addTaskSync("Prepare weekly report", "Review employee performance", TaskPriority.MEDIUM)
+        addTaskSync("Update project documentation", "Check latest changes", TaskPriority.LOW)
+        val teamMeeting = addTaskSync("Team meeting notes", "Share summary with team", TaskPriority.MEDIUM)
+        completeTaskSync(teamMeeting.id)
+        addTaskSync("Fix login issue", "Resolve authentication bug", TaskPriority.HIGH)
     }
 
-    override fun getTasks(): List<Task> {
-        return tasksList.toList()
-    }
-
-    override fun addTask(title: String, description: String, priority: TaskPriority): Task {
+    private fun addTaskSync(title: String, description: String, priority: TaskPriority): Task {
         val nextId = String.format(Locale.US, "TASK-%03d", idCounter.getAndIncrement())
         val newTask = Task(
             id = nextId,
@@ -34,7 +31,7 @@ class InMemoryTaskRepository : TaskRepository {
         return newTask
     }
 
-    override fun completeTask(id: String): Boolean {
+    private fun completeTaskSync(id: String): Boolean {
         val index = tasksList.indexOfFirst { it.id == id }
         if (index != -1) {
             val existing = tasksList[index]
@@ -46,14 +43,35 @@ class InMemoryTaskRepository : TaskRepository {
         return false
     }
 
-    override fun toggleComplete(id: String): Boolean {
+    override suspend fun getTasks(): NetworkResult<List<Task>> {
+        return NetworkResult.Success(tasksList.toList())
+    }
+
+    override suspend fun addTask(title: String, description: String, priority: TaskPriority): NetworkResult<Task> {
+        val newTask = addTaskSync(title, description, priority)
+        return NetworkResult.Success(newTask)
+    }
+
+    override suspend fun completeTask(id: String): NetworkResult<Task> {
         val index = tasksList.indexOfFirst { it.id == id }
         if (index != -1) {
             val existing = tasksList[index]
-            tasksList[index] = existing.copy(isCompleted = !existing.isCompleted)
-            return true
+            val updated = existing.copy(isCompleted = true)
+            tasksList[index] = updated
+            return NetworkResult.Success(updated)
         }
-        return false
+        return NetworkResult.Error("Task not found")
+    }
+
+    override suspend fun toggleComplete(id: String): NetworkResult<Task> {
+        val index = tasksList.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val existing = tasksList[index]
+            val updated = existing.copy(isCompleted = !existing.isCompleted)
+            tasksList[index] = updated
+            return NetworkResult.Success(updated)
+        }
+        return NetworkResult.Error("Task not found")
     }
 
     override fun getTaskById(id: String): Task? {

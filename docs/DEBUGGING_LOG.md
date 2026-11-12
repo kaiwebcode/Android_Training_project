@@ -19,3 +19,10 @@
 - **Fix**: The row action now calls `TaskListViewModel.completeTask`; repeated taps leave the task completed.
 - **Verification**: `:app:testDebugUnitTest` passed (6 passed, 0 skipped, 0 failed); `:app:assembleDebug` completed successfully; `git diff --check` passed.
 - **Static analysis**: No errors; existing Android lint/style warnings remain in `MainActivity.kt`.
+
+## Day 8 Codex Review Triage — Static Source Review
+- **Scope**: Reviewed malformed/missing API data, server/network failures, and refresh/UI update paths against the Week 2 Day 8 slide.
+- **Reproduce**: Not performed in this review; no fake defect was injected and no device/network evidence was captured.
+- **Observe**: Source review found that POST/PUT HTTP error responses are ignored, cached tasks suppress GET errors without a refresh-error signal, and missing DTO `id`/`title` values are replaced with fabricated values. See `docs/CODEX_REVIEW.md` for evidence and reproduction steps.
+- **Isolate**: Candidate causes are in `ApiTaskRepository.addTask/completeTask/getTasks` and `TaskDto.toDomainTask`.
+- **Verify**: Not performed. No code fix, test run, build, or runtime verification is claimed. Day 8 is still open pending reproduction and verification.
