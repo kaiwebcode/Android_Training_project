@@ -1,18 +1,15 @@
-# Current Status — Day 8 (Defect Debugging Complete)
+# Current Status — Day 9 (Testing, Delivery & APK Verification Complete)
 
-## Done (Day 8 Deliverables Completed)
-- [x] Applied 4-step defect debugging framework (**Reproduce → Observe → Isolate → Verify**) for 3 controlled defects.
-- [x] **Defect 1 Fixed (Malformed API Data Crash):** Handled `JsonSyntaxException` in `ApiTaskRepository` and added safe DTO fallbacks in `TaskDto.toDomainTask()`. Verified with unit test `getTasks_returnsErrorOnMalformedJson()`.
-- [x] **Defect 2 Fixed (HTTP 500 / Network Timeout):** Handled `SocketTimeoutException` and HTTP 500 server errors in `ApiTaskRepository`. Verified UI state transition to `TaskListUiState.Error` and actionable **Retry** button with `retryFetch_reloadsTasksAfterError()`.
-- [x] **Defect 3 Fixed (UI Not Updating After Refresh):** Fixed list mutation state flow reference passing in `ApiTaskRepository` and `TaskListViewModel`. Verified counter recalculation and list diffing with `completeTask_updatesTaskCompletionAndCelebrationState()`.
-- [x] Updated `docs/DEBUGGING_LOG.md` with complete 4-step framework logs for all 3 defects.
-- [x] Verified unit tests (`:app:testDebugUnitTest` 12/12 passed) and debug APK build (`:app:assembleDebug` SUCCESSFUL).
-
-## Next — Day 9 (Friday: Test & Deliver)
-- Run full unit test suite and generate debug APK.
-- Conduct diff review and write `docs/PULL_REQUEST.md`.
-- Submit PR and prepare demo evidence (Loading, Success, Empty, Error).
+## Done (Day 9 Deliverables Completed)
+- [x] Expanded unit test suite from 12 to **25 passing unit tests** (`TaskListViewModelTest`: 12 tests, `ApiTaskRepositoryTest`: 13 tests) verifying blank title validation, priorities (`HIGH`/`LOW`), toggling completion, state reset helpers, demo scenario switching, repository write operations, empty responses, and HTTP error codes (400, 404, 500).
+- [x] Generated and verified Debug APK (`app/build/outputs/apk/debug/app-debug.apk`) and Release APK (`app/build/outputs/apk/release/app-release.apk`).
+- [x] Suspected release runtime `IllegalAccessError` cause: it occurred with release optimization enabled and was not observed after disabling optimization. This before/after behavior supports the workaround but does not establish R8's internal mechanism; release optimization remains disabled for this training build.
+- [x] Configured temporary debug-key signing for release builds (`signingConfig = signingConfigs.getByName("debug")`) for local training and side-loading validation.
+- [x] User manually confirmed successful physical Android device installation and launch of the release APK. This was not an automated ADB installation or launch verification.
+- [x] Conducted Git diff review and updated project documentation (`docs/CURRENT_STATUS.md`, `docs/AI_HANDOFF.md`, `docs/DEBUGGING_LOG.md`, `docs/PULL_REQUEST.md`).
 
 ## Test & Build Verification Results
-- `:app:testDebugUnitTest`: 12 passed, 0 skipped, 0 failed.
-- `:app:assembleDebug`: BUILD SUCCESSFUL.
+- `:app:testDebugUnitTest`: **25 PASSED, 0 SKIPPED, 0 FAILED**.
+- `:app:assembleDebug`: **BUILD SUCCESSFUL**.
+- `:app:assembleRelease`: **BUILD SUCCESSFUL**.
+- Physical Device Installation & Launch: **Confirmed successful by user**.
