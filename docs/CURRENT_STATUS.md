@@ -1,7 +1,7 @@
 # Current Status — Day 9 (Testing, Delivery & APK Verification Complete)
 
 ## Done (Day 9 Deliverables Completed)
-- [x] Expanded unit test suite from 12 to **25 passing unit tests** (`TaskListViewModelTest`: 12 tests, `ApiTaskRepositoryTest`: 13 tests) verifying blank title validation, priorities (`HIGH`/`LOW`), toggling completion, state reset helpers, demo scenario switching, repository write operations, empty responses, and HTTP error codes (400, 404, 500).
+- [x] Expanded unit test suite from 12 to **25 passing unit tests** (`TaskListViewModelTest`: 12 tests, `ApiTaskRepositoryTest`: 12 tests, `ExampleUnitTest`: 1 test) verifying blank title validation, priorities (`HIGH`/`LOW`), toggling completion, state reset helpers, demo scenario switching, repository write operations, empty responses, and HTTP error codes (400, 404, 500).
 - [x] Generated and verified Debug APK (`app/build/outputs/apk/debug/app-debug.apk`) and Release APK (`app/build/outputs/apk/release/app-release.apk`).
 - [x] Suspected release runtime `IllegalAccessError` cause: it occurred with release optimization enabled and was not observed after disabling optimization. This before/after behavior supports the workaround but does not establish R8's internal mechanism; release optimization remains disabled for this training build.
 - [x] Configured temporary debug-key signing for release builds (`signingConfig = signingConfigs.getByName("debug")`) for local training and side-loading validation.
@@ -13,3 +13,14 @@
 - `:app:assembleDebug`: **BUILD SUCCESSFUL**.
 - `:app:assembleRelease`: **BUILD SUCCESSFUL**.
 - Physical Device Installation & Launch: **Confirmed successful by user**.
+
+## Day 10 - Saturday Revision (14 November 2026)
+
+- MVVM architecture and actual GoRest API flow reviewed.
+- Loading, Content, Empty and Error UI states demonstrated.
+- Network Inspector and Logcat evidence inspected.
+- Debugging records reviewed.
+- Debug unit tests and APK build completed successfully.
+- Verified 25 tests: 12 ViewModel, 12 Repository, 1 ExampleUnitTest.
+- HTTP 405 on task update identified as an open issue.
+- Revision details recorded in docs/SATURDAY_REVISION.md.
