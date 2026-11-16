@@ -12,6 +12,10 @@ import com.example.a1weektaskproject.data.remote.model.GoRestTaskResponse
 import com.example.a1weektaskproject.data.remote.model.TaskDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -60,6 +64,7 @@ class TaskListViewModelTest {
     @Test
     fun loadTasks_emitsEmptyStateWhenNoTasksReturned() = runTest {
         val emptyRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = flowOf(emptyList())
             override suspend fun getTasks() = NetworkResult.Success(emptyList<Task>())
             override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Success(Task("1", title))
             override suspend fun completeTask(id: String) = NetworkResult.Error("Not found")
@@ -76,6 +81,7 @@ class TaskListViewModelTest {
     @Test
     fun loadTasks_emitsErrorStateOnNetworkFailure() = runTest {
         val errorRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = flowOf(emptyList())
             override suspend fun getTasks() = NetworkResult.Error("No internet connection")
             override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("Failed")
             override suspend fun completeTask(id: String) = NetworkResult.Error("Failed")
@@ -93,13 +99,17 @@ class TaskListViewModelTest {
     @Test
     fun retryFetch_reloadsTasksAfterError() = runTest {
         var callCount = 0
+        val taskFlow = MutableStateFlow<List<Task>>(emptyList())
         val toggleRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = taskFlow.asStateFlow()
             override suspend fun getTasks(): NetworkResult<List<Task>> {
                 callCount++
                 return if (callCount == 1) {
                     NetworkResult.Error("Server connection timed out.")
                 } else {
-                    NetworkResult.Success(listOf(Task("TASK-101", "Recovered Task")))
+                    val tasks = listOf(Task("TASK-101", "Recovered Task"))
+                    taskFlow.value = tasks
+                    NetworkResult.Success(tasks)
                 }
             }
             override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("N/A")
@@ -236,7 +246,7 @@ class TaskListViewModelTest {
             override suspend fun createTask(task: TaskDto) = Response.success(task)
             override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id, status = "done"))
         }
-        val apiRepo = ApiTaskRepository(fakeService, UnconfinedTestDispatcher())
+        val apiRepo = ApiTaskRepository(apiService = fakeService, ioDispatcher = UnconfinedTestDispatcher())
         val apiVm = TaskListViewModel(apiRepo)
         testDispatcher.scheduler.advanceUntilIdle()
 

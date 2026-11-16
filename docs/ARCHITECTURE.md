@@ -14,18 +14,18 @@ The Employee Task Manager app follows Android's recommended Unidirectional Data 
 │   ViewModel (State Owner) │                        │
 │     TaskListViewModel     │────────────────────────┘
 └─────────────┬─────────────┘
-              │ coroutines (Dispatchers.IO)
+              │ collects Flow<List<Task>>
               ▼
 ┌───────────────────────────┐
-│     Repository Layer      │  maps TaskDto -> Task
+│     Repository Layer      │  SSOT
 │     ApiTaskRepository     │
-└─────────────┬─────────────┘
-              │ Retrofit / OkHttp
-              ▼
-┌───────────────────────────┐
-│      Network / API        │  GET /tasks
-│  TaskApiService (REST API) │
-└───────────────────────────┘
+└──────┬────────────┬───────┘
+       │            │
+       ▼            ▼
+┌──────────────┐  ┌───────────────────────────┐
+│ Room Database│  │      Network / API        │
+│ TaskDao/Entity│  │  TaskApiService (REST)    │
+└──────────────┘  └───────────────────────────┘
 ```
 
 ---

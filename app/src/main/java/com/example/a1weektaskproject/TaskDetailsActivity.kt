@@ -14,7 +14,9 @@ import kotlinx.coroutines.launch
 
 class TaskDetailsActivity : AppCompatActivity() {
 
-    private val repository: TaskRepository = ApiTaskRepository.getInstance()
+    private val repository: TaskRepository by lazy {
+        (application as TaskApplication).repository
+    }
     private var currentTask: Task? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
