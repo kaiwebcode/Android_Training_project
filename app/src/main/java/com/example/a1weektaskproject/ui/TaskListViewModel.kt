@@ -21,31 +21,52 @@ class TaskListViewModel(
     val uiState: StateFlow<TaskListUiState> = _uiState.asStateFlow()
 
     init {
+        observeTasksFlow()
         loadTasks()
     }
 
+    private fun observeTasksFlow() {
+        viewModelScope.launch {
+            repository.getTasksFlow().collect { tasks ->
+                val currentState = _uiState.value
+                if (tasks.isNotEmpty()) {
+                    val total = tasks.size
+                    val completed = tasks.count { it.isCompleted }
+                    val pending = total - completed
+                    val newlyCompleted = if (currentState is TaskListUiState.Content) currentState.newlyCompletedTask else null
+                    val validationErr = if (currentState is TaskListUiState.Content) currentState.validationError else null
+
+                    _uiState.value = TaskListUiState.Content(
+                        tasks = tasks,
+                        totalCount = total,
+                        completedCount = completed,
+                        pendingCount = pending,
+                        newlyCompletedTask = newlyCompleted,
+                        validationError = validationErr
+                    )
+                } else if (currentState is TaskListUiState.Content) {
+                    _uiState.value = TaskListUiState.Empty
+                }
+            }
+        }
+    }
+
     fun loadTasks() {
-        _uiState.value = TaskListUiState.Loading
+        if (_uiState.value !is TaskListUiState.Content) {
+            _uiState.value = TaskListUiState.Loading
+        }
         viewModelScope.launch {
             when (val result = repository.getTasks()) {
                 is NetworkResult.Success -> {
                     val tasks = result.data
-                    if (tasks.isEmpty()) {
+                    if (tasks.isEmpty() && _uiState.value !is TaskListUiState.Content) {
                         _uiState.value = TaskListUiState.Empty
-                    } else {
-                        val total = tasks.size
-                        val completed = tasks.count { it.isCompleted }
-                        val pending = total - completed
-                        _uiState.value = TaskListUiState.Content(
-                            tasks = tasks,
-                            totalCount = total,
-                            completedCount = completed,
-                            pendingCount = pending
-                        )
                     }
                 }
                 is NetworkResult.Error -> {
-                    _uiState.value = TaskListUiState.Error(result.message)
+                    if (_uiState.value !is TaskListUiState.Content) {
+                        _uiState.value = TaskListUiState.Error(result.message)
+                    }
                 }
             }
         }
@@ -90,20 +111,10 @@ class TaskListViewModel(
             val result = repository.completeTask(id)
             if (result is NetworkResult.Success) {
                 val updatedTask = result.data
-                val currentTasksRes = repository.getTasks()
-                val currentTasks = if (currentTasksRes is NetworkResult.Success) currentTasksRes.data else emptyList()
-
-                val total = currentTasks.size
-                val completed = currentTasks.count { it.isCompleted }
-                val pending = total - completed
-
-                _uiState.value = TaskListUiState.Content(
-                    tasks = currentTasks,
-                    totalCount = total,
-                    completedCount = completed,
-                    pendingCount = pending,
-                    newlyCompletedTask = if (wasIncomplete && updatedTask.isCompleted) updatedTask else null
-                )
+                val currentState = _uiState.value
+                if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
+                    _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+                }
             }
         }
     }
@@ -116,20 +127,10 @@ class TaskListViewModel(
             val result = repository.toggleComplete(id)
             if (result is NetworkResult.Success) {
                 val updatedTask = result.data
-                val currentTasksRes = repository.getTasks()
-                val currentTasks = if (currentTasksRes is NetworkResult.Success) currentTasksRes.data else emptyList()
-
-                val total = currentTasks.size
-                val completed = currentTasks.count { it.isCompleted }
-                val pending = total - completed
-
-                _uiState.value = TaskListUiState.Content(
-                    tasks = currentTasks,
-                    totalCount = total,
-                    completedCount = completed,
-                    pendingCount = pending,
-                    newlyCompletedTask = if (wasIncomplete && updatedTask.isCompleted) updatedTask else null
-                )
+                val currentState = _uiState.value
+                if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
+                    _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+                }
             }
         }
     }

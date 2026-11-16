@@ -1,11 +1,13 @@
 package com.example.a1weektaskproject.data
 
 import com.example.a1weektaskproject.data.remote.NetworkResult
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Interface defining data operations for task management.
  */
 interface TaskRepository {
+    fun getTasksFlow(): Flow<List<Task>>
     suspend fun getTasks(): NetworkResult<List<Task>>
     suspend fun addTask(title: String, description: String = "", priority: TaskPriority = TaskPriority.MEDIUM): NetworkResult<Task>
     suspend fun completeTask(id: String): NetworkResult<Task>

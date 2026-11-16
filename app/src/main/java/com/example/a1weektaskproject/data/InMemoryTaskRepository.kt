@@ -1,6 +1,9 @@
 package com.example.a1weektaskproject.data
 
 import com.example.a1weektaskproject.data.remote.NetworkResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -8,6 +11,7 @@ class InMemoryTaskRepository : TaskRepository {
 
     private val tasksList = mutableListOf<Task>()
     private val idCounter = AtomicInteger(1)
+    private val _tasksFlow = MutableStateFlow<List<Task>>(emptyList())
 
     init {
         // Pre-populate initial sample tasks matching the UI design specs
@@ -28,6 +32,7 @@ class InMemoryTaskRepository : TaskRepository {
             priority = priority
         )
         tasksList.add(newTask)
+        _tasksFlow.value = tasksList.toList()
         return newTask
     }
 
@@ -37,11 +42,14 @@ class InMemoryTaskRepository : TaskRepository {
             val existing = tasksList[index]
             if (!existing.isCompleted) {
                 tasksList[index] = existing.copy(isCompleted = true)
+                _tasksFlow.value = tasksList.toList()
                 return true
             }
         }
         return false
     }
+
+    override fun getTasksFlow(): Flow<List<Task>> = _tasksFlow.asStateFlow()
 
     override suspend fun getTasks(): NetworkResult<List<Task>> {
         return NetworkResult.Success(tasksList.toList())
@@ -58,6 +66,7 @@ class InMemoryTaskRepository : TaskRepository {
             val existing = tasksList[index]
             val updated = existing.copy(isCompleted = true)
             tasksList[index] = updated
+            _tasksFlow.value = tasksList.toList()
             return NetworkResult.Success(updated)
         }
         return NetworkResult.Error("Task not found")
@@ -69,6 +78,7 @@ class InMemoryTaskRepository : TaskRepository {
             val existing = tasksList[index]
             val updated = existing.copy(isCompleted = !existing.isCompleted)
             tasksList[index] = updated
+            _tasksFlow.value = tasksList.toList()
             return NetworkResult.Success(updated)
         }
         return NetworkResult.Error("Task not found")

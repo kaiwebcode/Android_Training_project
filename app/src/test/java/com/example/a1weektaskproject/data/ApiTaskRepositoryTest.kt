@@ -282,4 +282,56 @@ class ApiTaskRepositoryTest {
         val notFoundTask = repository.getTaskById("UNKNOWN_ID")
         assertNull(notFoundTask)
     }
+
+    @Test
+    fun getTasks_returnsCachedTasksOnNetworkException() = runTest {
+        var throwNetworkError = false
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                if (throwNetworkError) {
+                    throw IOException("Network dropped")
+                }
+                return Response.success(GoRestTaskResponse(data = listOf(TaskDto(id = "OFFLINE-1", title = "Cached Offline Task"))))
+            }
+
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher)
+        val initialResult = repository.getTasks()
+        assertTrue(initialResult is NetworkResult.Success)
+        assertEquals(1, (initialResult as NetworkResult.Success).data.size)
+
+        // Now simulate network failure
+        throwNetworkError = true
+        val offlineResult = repository.getTasks()
+        assertTrue(offlineResult is NetworkResult.Success)
+        val cachedTasks = (offlineResult as NetworkResult.Success).data
+        assertEquals(1, cachedTasks.size)
+        assertEquals("Cached Offline Task", cachedTasks[0].title)
+    }
+
+    @Test
+    fun demoScenarios_doNotCorruptInMemoryData() = runTest {
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int) = Response.success(GoRestTaskResponse(data = emptyList()))
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher)
+        val added = repository.addTask("Local Task Before Demo", "Desc", TaskPriority.HIGH)
+        val taskId = (added as NetworkResult.Success).data.id
+
+        // Trigger Demo Scenario: returns Error UI state for demo demonstration
+        repository.currentDemoScenario = DemoScenario.HTTP_500_SERVER_ERROR
+        val result = repository.getTasks()
+        assertTrue(result is NetworkResult.Error)
+
+        // Verify that the task in repository database was NOT deleted or corrupted by demo mode
+        val preservedTask = repository.getTaskById(taskId)
+        assertNotNull(preservedTask)
+        assertEquals("Local Task Before Demo", preservedTask?.title)
+    }
 }

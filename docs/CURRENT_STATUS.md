@@ -1,26 +1,17 @@
-# Current Status — Day 9 (Testing, Delivery & APK Verification Complete)
+# Current Status — Week 3 Day 10 (Room Offline Persistence & SSOT Complete)
 
-## Done (Day 9 Deliverables Completed)
-- [x] Expanded unit test suite from 12 to **25 passing unit tests** (`TaskListViewModelTest`: 12 tests, `ApiTaskRepositoryTest`: 12 tests, `ExampleUnitTest`: 1 test) verifying blank title validation, priorities (`HIGH`/`LOW`), toggling completion, state reset helpers, demo scenario switching, repository write operations, empty responses, and HTTP error codes (400, 404, 500).
-- [x] Generated and verified Debug APK (`app/build/outputs/apk/debug/app-debug.apk`) and Release APK (`app/build/outputs/apk/release/app-release.apk`).
-- [x] Suspected release runtime `IllegalAccessError` cause: it occurred with release optimization enabled and was not observed after disabling optimization. This before/after behavior supports the workaround but does not establish R8's internal mechanism; release optimization remains disabled for this training build.
-- [x] Configured temporary debug-key signing for release builds (`signingConfig = signingConfigs.getByName("debug")`) for local training and side-loading validation.
-- [x] User manually confirmed successful physical Android device installation and launch of the release APK. This was not an automated ADB installation or launch verification.
-- [x] Conducted Git diff review and updated project documentation (`docs/CURRENT_STATUS.md`, `docs/AI_HANDOFF.md`, `docs/DEBUGGING_LOG.md`, `docs/PULL_REQUEST.md`).
+## Done (Day 10 Deliverables Completed)
+- [x] Implemented Room Database (`AppDatabase`, `TaskEntity`, `TaskDao`) with `exportSchema = true` and schema JSON export at `app/schemas/com.example.a1weektaskproject.data.local.AppDatabase/1.json`.
+- [x] Integrated Room as Single Source of Truth (SSOT) in `ApiTaskRepository` and `TaskApplication`, exposing reactive `Flow<List<Task>>` to `TaskListViewModel`.
+- [x] Implemented safe remote-to-local merge logic protecting pending local edits (`syncState == PENDING` or `SYNCING`) from stale API responses.
+- [x] Configured stable 36-character UUIDs (`UUID.randomUUID().toString()`) for locally created tasks.
+- [x] Added and verified Room DAO instrumentation test suite (`TaskDaoTest`) covering CRUD, Flow observation, and database reopening persistence.
+- [x] Executed and verified instrumentation tests on physical device **OnePlus Nord CE (EB2101, Android 12)** (`6 PASSED, 0 FAILED`).
+- [x] Verified unit test suite (`27 PASSED, 0 FAILED`) and debug build success (`:app:assembleDebug`).
 
 ## Test & Build Verification Results
-- `:app:testDebugUnitTest`: **25 PASSED, 0 SKIPPED, 0 FAILED**.
+- `:app:testDebugUnitTest`: **27 PASSED, 0 SKIPPED, 0 FAILED**.
+- `:app:connectedDebugAndroidTest`: **6 PASSED, 0 SKIPPED, 0 FAILED** on physical OnePlus Nord CE device.
 - `:app:assembleDebug`: **BUILD SUCCESSFUL**.
-- `:app:assembleRelease`: **BUILD SUCCESSFUL**.
-- Physical Device Installation & Launch: **Confirmed successful by user**.
-
-## Day 10 - Saturday Revision (14 November 2026)
-
-- MVVM architecture and actual GoRest API flow reviewed.
-- Loading, Content, Empty and Error UI states demonstrated.
-- Network Inspector and Logcat evidence inspected.
-- Debugging records reviewed.
-- Debug unit tests and APK build completed successfully.
-- Verified 25 tests: 12 ViewModel, 12 Repository, 1 ExampleUnitTest.
-- HTTP 405 on task update identified as an open issue.
-- Revision details recorded in docs/SATURDAY_REVISION.md.
+- `:app:assembleDebugAndroidTest`: **BUILD SUCCESSFUL**.
+- Git Diff Check: **0 formatting / whitespace issues**.

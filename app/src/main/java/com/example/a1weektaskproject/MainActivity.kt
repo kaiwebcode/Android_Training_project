@@ -33,7 +33,9 @@ import kotlinx.coroutines.launch
  */
 class MainActivity : AppCompatActivity() {
 
-    private val viewModel: TaskListViewModel by viewModels()
+    private val viewModel: TaskListViewModel by viewModels {
+        TaskListViewModel.Factory((application as TaskApplication).repository)
+    }
     private lateinit var taskAdapter: TaskAdapter
 
     private lateinit var totalCountTextView: TextView
