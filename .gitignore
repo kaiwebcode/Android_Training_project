@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.db
+**/node_modules/
+tools/mock-sync-server/*.db

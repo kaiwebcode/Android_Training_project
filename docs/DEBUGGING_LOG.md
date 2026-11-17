@@ -1,4 +1,4 @@
-# Debugging Log — Day 8 & Day 9 Defect Resolution Framework
+# Debugging Log — Week 2 & Week 3 Defect Resolution Framework
 
 This document tracks defect diagnosis and resolution using the 4-step defect debugging framework:
 $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate} \longrightarrow \text{Verify}$$
@@ -41,3 +41,21 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 - **Step 2 — Observe:** Detailed test report stack trace revealed JUnit's `ParentRunner.validate()` failed with `Method persistenceAcrossReopeningDatabase() should be void`.
 - **Step 3 — Isolate:** `persistenceAcrossReopeningDatabase()` was declared with expression body `= runBlocking { ... }`. Its last statement `context.deleteDatabase(dbName)` returned `Boolean`, causing Kotlin to infer a `Boolean` return type. JUnit 4 strictly requires `@Test` methods to return `void`.
 - **Step 4 — Verify:** Refactored all `@Test` methods in `TaskDaoTest.kt` to use explicit block syntax `{ runBlocking { ... } }` returning `Unit` / `void`, and added `androidx.test:core-ktx` & `androidx.test:runner` to `app/build.gradle.kts`. Re-executed `.\gradlew.bat connectedDebugAndroidTest` on OnePlus Nord CE. Result: **6 PASSED, 0 FAILED**.
+
+---
+
+## Defect 6: WorkManager Worker Test Bytecode Compatibility on Java 25 (`Unsupported class file major version 69`)
+- **Symptom / Description:** Robolectric 4.14.1 test runner threw `IllegalArgumentException: Java 25 (69) is not supported by the current version of Byte Buddy` when attempting to instrument Android framework classes.
+- **Step 1 — Reproduce:** Executed unit test suite with Robolectric runner on Java 25 JDK.
+- **Step 2 — Observe:** ByteBuddy failed to retransform `android.content.Context` because Java 25 class version 69 exceeds ByteBuddy support.
+- **Step 3 — Isolate:** Worker background sync algorithm logic in `TaskSyncWorker` was coupled with Android `Context` in constructor.
+- **Step 4 — Verify:** Refactored `TaskSyncWorker` to expose static method `performSync(dao, api)` and decoupled worker execution from Android context mocks, allowing pure JVM unit testing via `TaskSyncWorkerTest`. Result: **31 PASSED, 0 FAILED**.
+
+---
+
+## Defect 7: Physical Device Mock Sync Routing & Cleartext HTTP Block (`HTTP 404` / Cleartext Traffic Block)
+- **Symptom / Description:** Initial physical device sync calls resulted in `HTTP 404` on `POST /public/v3/tasks` and blocked connections when communicating with `http://192.168.1.114:3000`.
+- **Step 1 — Reproduce:** Created tasks offline, restored internet, observed Logcat and mock server logs.
+- **Step 2 — Observe:** Logcat showed requests directed to `/public/v3/tasks` (GoRest path) and cleartext HTTP security blocks by Android OS.
+- **Step 3 — Isolate:** `TaskSyncWorker` was sharing GoRest `TaskApiService` with `@POST("public/v3/tasks")`, and `AndroidManifest.xml` lacked `android:usesCleartextTraffic="true"`.
+- **Step 4 — Verify:** Created dedicated `TaskSyncApiService` and `ApiSyncClient` targeting `http://192.168.1.114:3000/tasks`, added `android:usesCleartextTraffic="true"`, and set `ExistingWorkPolicy.REPLACE`. Re-tested live on physical device: Task 1, Task 2, and Task 3 successfully synced to mock server (`SYNCED`, `syncOp = NONE`, zero duplicates).

@@ -39,7 +39,7 @@ enum class DemoScenario {
  * REST API & Room Database Single Source of Truth Repository implementation.
  */
 class ApiTaskRepository(
-    private val apiService: TaskApiService = ApiClient.taskApiService,
+    val apiService: TaskApiService = ApiClient.taskApiService,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val taskDao: TaskDao? = null
 ) : TaskRepository {
@@ -103,8 +103,8 @@ class ApiTaskRepository(
                             val entitiesToInsert = mutableListOf<TaskEntity>()
                             for (remoteTask in remoteTasks) {
                                 val existingEntity = taskDao.getTaskById(remoteTask.id)
-                                if (existingEntity != null && (existingEntity.syncState == SyncState.PENDING || existingEntity.syncState == SyncState.SYNCING)) {
-                                    // Protect local unsynced changes from being overwritten by remote API
+                                if (existingEntity != null && (existingEntity.syncState == SyncState.PENDING || existingEntity.syncState == SyncState.SYNCING || isUuid(existingEntity.id))) {
+                                    // Protect local pending/syncing changes or local UUID tasks from being overwritten by GoRest API
                                     continue
                                 }
                                 entitiesToInsert.add(remoteTask.toEntity(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE))
@@ -297,6 +297,14 @@ class ApiTaskRepository(
                 "Server returned an error (${throwable.code()}). Please try again."
             else ->
                 throwable.localizedMessage ?: "An unexpected error occurred while fetching tasks."
+        }
+    }
+
+    private fun isUuid(id: String): Boolean {
+        return try {
+            UUID.fromString(id) != null && id.length == 36
+        } catch (_: Exception) {
+            false
         }
     }
 
