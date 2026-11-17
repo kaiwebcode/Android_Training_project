@@ -1,17 +1,15 @@
-# Current Status — Week 3 Day 10 (Room Offline Persistence & SSOT Complete)
+# Current Status — Week 3 Day 11 Final Verification Complete
 
-## Done (Day 10 Deliverables Completed)
-- [x] Implemented Room Database (`AppDatabase`, `TaskEntity`, `TaskDao`) with `exportSchema = true` and schema JSON export at `app/schemas/com.example.a1weektaskproject.data.local.AppDatabase/1.json`.
-- [x] Integrated Room as Single Source of Truth (SSOT) in `ApiTaskRepository` and `TaskApplication`, exposing reactive `Flow<List<Task>>` to `TaskListViewModel`.
-- [x] Implemented safe remote-to-local merge logic protecting pending local edits (`syncState == PENDING` or `SYNCING`) from stale API responses.
-- [x] Configured stable 36-character UUIDs (`UUID.randomUUID().toString()`) for locally created tasks.
-- [x] Added and verified Room DAO instrumentation test suite (`TaskDaoTest`) covering CRUD, Flow observation, and database reopening persistence.
-- [x] Executed and verified instrumentation tests on physical device **OnePlus Nord CE (EB2101, Android 12)** (`6 PASSED, 0 FAILED`).
-- [x] Verified unit test suite (`27 PASSED, 0 FAILED`) and debug build success (`:app:assembleDebug`).
+## Done (Day 11 Deliverables Completed)
+- [x] Configured **WorkManager 2.12.0** (`work-runtime-ktx`) and dedicated `ApiSyncClient` / `TaskSyncApiService` targeting `http://192.168.1.114:3000/`.
+- [x] Verified live synchronization on physical device: 3 tasks created offline successfully synced to live mock server with `syncState = SYNCED`, `syncOp = NONE`, and zero duplicates (`GET /tasks` returns count: 3).
+- [x] Verified `TIMEOUT_AFTER_SERVER_SAVE` scenario: task successfully committed to SQLite on 1st attempt, HTTP 504 timeout returned, WorkManager retry with same UUID succeeded with **exactly one server record and zero duplicates**.
+- [x] Verified unit test suite (**31 PASSED, 0 FAILED**) and mock server test suite (**9 PASSED, 0 FAILED**).
+- [x] Created sequence diagram at `docs/diagrams/offline-sync.mmd`.
 
 ## Test & Build Verification Results
-- `:app:testDebugUnitTest`: **27 PASSED, 0 SKIPPED, 0 FAILED**.
-- `:app:connectedDebugAndroidTest`: **6 PASSED, 0 SKIPPED, 0 FAILED** on physical OnePlus Nord CE device.
+- `:app:testDebugUnitTest`: **31 PASSED, 0 SKIPPED, 0 FAILED**.
 - `:app:assembleDebug`: **BUILD SUCCESSFUL**.
-- `:app:assembleDebugAndroidTest`: **BUILD SUCCESSFUL**.
-- Git Diff Check: **0 formatting / whitespace issues**.
+- Mock Sync Server automated tests: **9 PASSED, 0 FAILED**.
+- Live Device Verification: **Task 1, Task 2, Task 3 successfully synchronized (SYNCED / NONE)**.
+- Git Branch: `feature/workmanager-sync`.

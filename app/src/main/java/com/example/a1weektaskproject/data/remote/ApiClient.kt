@@ -7,7 +7,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Singleton provider for Retrofit TaskApiService instances.
+ * Singleton provider for Retrofit TaskApiService instances targeting GoRest production API.
  */
 object ApiClient {
     private const val BASE_URL = "https://gorest.co.in/"

@@ -4,6 +4,13 @@ import com.example.a1weektaskproject.data.remote.NetworkResult
 import com.example.a1weektaskproject.data.remote.TaskApiService
 import com.example.a1weektaskproject.data.remote.model.GoRestTaskResponse
 import com.example.a1weektaskproject.data.remote.model.TaskDto
+import com.example.a1weektaskproject.data.local.AppDatabase
+import com.example.a1weektaskproject.data.local.TaskDao
+import com.example.a1weektaskproject.data.local.TaskEntity
+import com.example.a1weektaskproject.data.local.SyncState
+import com.example.a1weektaskproject.data.local.SyncOp
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -333,5 +340,87 @@ class ApiTaskRepositoryTest {
         val preservedTask = repository.getTaskById(taskId)
         assertNotNull(preservedTask)
         assertEquals("Local Task Before Demo", preservedTask?.title)
+    }
+
+    @Test
+    fun synchronizedLocalTasks_remainVisibleAfterGoRestRefresh() = runTest {
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                val dtos = listOf(
+                    TaskDto(id = "999", title = "GoRest Remote Task", status = "todo", priority = "medium")
+                )
+                return Response.success(GoRestTaskResponse(data = dtos))
+            }
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher)
+
+        val task1 = repository.addTask("Task 1", "Desc 1", TaskPriority.HIGH)
+        val task2 = repository.addTask("Task 2", "Desc 2", TaskPriority.MEDIUM)
+        val task3 = repository.addTask("Task 3", "Desc 3", TaskPriority.LOW)
+
+        val id1 = (task1 as NetworkResult.Success).data.id
+        val id2 = (task2 as NetworkResult.Success).data.id
+        val id3 = (task3 as NetworkResult.Success).data.id
+
+        val result = repository.getTasks()
+        assertTrue(result is NetworkResult.Success)
+        val tasks = (result as NetworkResult.Success).data
+
+        assertNotNull(repository.getTaskById(id1))
+        assertNotNull(repository.getTaskById(id2))
+        assertNotNull(repository.getTaskById(id3))
+        assertTrue(tasks.any { it.id == id1 })
+        assertTrue(tasks.any { it.id == id2 })
+        assertTrue(tasks.any { it.id == id3 })
+        assertTrue(tasks.any { it.title == "GoRest Remote Task" })
+    }
+
+    @Test
+    fun syncedLocalTasks_protectedFromRemoteOverwriteEvenWithCollidingId() = runTest {
+        val collidingId = "73216439-df11-4b43-88a1-d5fe81155181"
+        val existingTask = TaskEntity(
+            id = collidingId,
+            title = "Original Local Task 1",
+            syncState = SyncState.SYNCED,
+            syncOp = SyncOp.NONE
+        )
+
+        val fakeDao = object : TaskDao {
+            private val map = mutableMapOf(collidingId to existingTask)
+            override fun getAllTasksFlow(): Flow<List<TaskEntity>> = flowOf(map.values.toList())
+            override suspend fun getAllTasks(): List<TaskEntity> = map.values.toList()
+            override suspend fun getTaskById(id: String): TaskEntity? = map[id]
+            override suspend fun insertTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun insertTasks(tasks: List<TaskEntity>) { tasks.forEach { map[it.id] = it } }
+            override suspend fun updateTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun deleteTaskById(id: String) { map.remove(id) }
+            override suspend fun clearAll() { map.clear() }
+            override suspend fun getPendingSyncTasks(): List<TaskEntity> = emptyList()
+            override suspend fun markTasksSyncing(ids: List<String>): Int = 0
+            override suspend fun resetSyncingToPending(): Int = 0
+            override suspend fun markTaskSyncedConditional(id: String, capturedUpdatedAt: Long): Int = 0
+            override suspend fun revertTaskSyncingToPending(id: String): Int = 0
+        }
+
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                val dtos = listOf(
+                    TaskDto(id = collidingId, title = "GoRest Malicious Overwrite", status = "done", priority = "low")
+                )
+                return Response.success(GoRestTaskResponse(data = dtos))
+            }
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher, fakeDao)
+        repository.getTasks()
+
+        val retrieved = fakeDao.getTaskById(collidingId)
+        assertNotNull(retrieved)
+        assertEquals("Original Local Task 1", retrieved?.title)
     }
 }

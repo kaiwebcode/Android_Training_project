@@ -36,4 +36,19 @@ interface TaskDao {
 
     @Query("DELETE FROM tasks")
     suspend fun clearAll()
+
+    @Query("SELECT * FROM tasks WHERE syncState = 'PENDING' OR syncState = 'SYNCING' ORDER BY updatedAt ASC")
+    suspend fun getPendingSyncTasks(): List<TaskEntity>
+
+    @Query("UPDATE tasks SET syncState = 'SYNCING' WHERE id IN (:ids) AND (syncState = 'PENDING' OR syncState = 'SYNCING')")
+    suspend fun markTasksSyncing(ids: List<String>): Int
+
+    @Query("UPDATE tasks SET syncState = 'PENDING' WHERE syncState = 'SYNCING'")
+    suspend fun resetSyncingToPending(): Int
+
+    @Query("UPDATE tasks SET syncState = 'SYNCED', syncOp = 'NONE' WHERE id = :id AND updatedAt = :capturedUpdatedAt")
+    suspend fun markTaskSyncedConditional(id: String, capturedUpdatedAt: Long): Int
+
+    @Query("UPDATE tasks SET syncState = 'PENDING' WHERE id = :id AND syncState = 'SYNCING'")
+    suspend fun revertTaskSyncingToPending(id: String): Int
 }

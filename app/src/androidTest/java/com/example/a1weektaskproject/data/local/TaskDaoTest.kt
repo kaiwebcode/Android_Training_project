@@ -151,4 +151,88 @@ class TaskDaoTest {
             context.deleteDatabase(dbName)
         }
     }
+
+    @Test
+    fun getPendingSyncTasksAndAtomicClaiming() {
+        runBlocking {
+            val pendingTask = TaskEntity(
+                id = "p-1",
+                title = "Pending Task",
+                syncState = SyncState.PENDING,
+                syncOp = SyncOp.CREATE,
+                updatedAt = 100L
+            )
+            val syncedTask = TaskEntity(
+                id = "s-1",
+                title = "Synced Task",
+                syncState = SyncState.SYNCED,
+                syncOp = SyncOp.NONE,
+                updatedAt = 200L
+            )
+            taskDao.insertTasks(listOf(pendingTask, syncedTask))
+
+            val pendingList = taskDao.getPendingSyncTasks()
+            assertEquals(1, pendingList.size)
+            assertEquals("p-1", pendingList[0].id)
+
+            // Claim pending task
+            val count = taskDao.markTasksSyncing(listOf("p-1"))
+            assertEquals(1, count)
+
+            val claimed = taskDao.getTaskById("p-1")
+            assertEquals(SyncState.SYNCING, claimed?.syncState)
+        }
+    }
+
+    @Test
+    fun resetSyncingToPending_revertsStuckTasks() {
+        runBlocking {
+            val stuckTask = TaskEntity(
+                id = "stuck-1",
+                title = "Stuck Task",
+                syncState = SyncState.SYNCING,
+                syncOp = SyncOp.CREATE
+            )
+            taskDao.insertTask(stuckTask)
+
+            val resetCount = taskDao.resetSyncingToPending()
+            assertEquals(1, resetCount)
+
+            val recovered = taskDao.getTaskById("stuck-1")
+            assertEquals(SyncState.PENDING, recovered?.syncState)
+        }
+    }
+
+    @Test
+    fun markTaskSyncedConditional_protectsNewerLocalEdits() {
+        runBlocking {
+            val capturedTimestamp = 1000L
+            val initialTask = TaskEntity(
+                id = "edit-1",
+                title = "Original Title",
+                syncState = SyncState.SYNCING,
+                syncOp = SyncOp.UPDATE,
+                updatedAt = capturedTimestamp
+            )
+            taskDao.insertTask(initialTask)
+
+            // User edits task locally during flight -> timestamp updates to 2000L
+            val userEditedTask = initialTask.copy(
+                title = "Edited While Uploading",
+                updatedAt = 2000L,
+                syncState = SyncState.PENDING
+            )
+            taskDao.updateTask(userEditedTask)
+
+            // Upload response completes with capturedTimestamp (1000L)
+            val rowsUpdated = taskDao.markTaskSyncedConditional("edit-1", capturedTimestamp)
+            // Expect 0 rows updated because capturedTimestamp doesn't match 2000L!
+            assertEquals(0, rowsUpdated)
+
+            // Task retains user edit and PENDING state
+            val current = taskDao.getTaskById("edit-1")
+            assertEquals("Edited While Uploading", current?.title)
+            assertEquals(SyncState.PENDING, current?.syncState)
+        }
+    }
 }
