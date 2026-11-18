@@ -259,4 +259,113 @@ class TaskListViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertTrue(apiVm.uiState.value is TaskListUiState.Empty)
     }
+
+    @Test
+    fun completeTask_duplicateTaps_executesOnlyOnce() = runTest {
+        var completeCallCount = 0
+        val slowRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = flowOf(listOf(Task("TASK-101", "Slow Task")))
+            override suspend fun getTasks(): NetworkResult<List<Task>> = NetworkResult.Success(listOf(Task("TASK-101", "Slow Task")))
+            override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("N/A")
+            override suspend fun completeTask(id: String): NetworkResult<Task> {
+                completeCallCount++
+                kotlinx.coroutines.delay(1000L)
+                return NetworkResult.Success(Task("TASK-101", "Slow Task", isCompleted = true))
+            }
+            override suspend fun toggleComplete(id: String) = NetworkResult.Error("N/A")
+            override fun getTaskById(id: String): Task? = Task("TASK-101", "Slow Task")
+        }
+
+        val testVm = TaskListViewModel(slowRepo)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Rapid 5 taps while slow operation is suspended
+        repeat(5) {
+            testVm.completeTask("TASK-101")
+        }
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Synchronous guard ensures completeTask is executed exactly once
+        assertEquals(1, completeCallCount)
+    }
+
+    @Test
+    fun loadTasks_obsoleteJobCancelled_onlyLatestResponseUpdatesUi() = runTest {
+        var loadCount = 0
+        val taskFlow = MutableStateFlow<List<Task>>(emptyList())
+        val delayedRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = taskFlow.asStateFlow()
+            override suspend fun getTasks(): NetworkResult<List<Task>> {
+                loadCount++
+                kotlinx.coroutines.delay(2000L)
+                val resultTasks = listOf(Task("TASK-$loadCount", "Task version $loadCount"))
+                taskFlow.value = resultTasks
+                return NetworkResult.Success(resultTasks)
+            }
+            override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("N/A")
+            override suspend fun completeTask(id: String) = NetworkResult.Error("N/A")
+            override suspend fun toggleComplete(id: String) = NetworkResult.Error("N/A")
+            override fun getTaskById(id: String): Task? = null
+        }
+
+        val testVm = TaskListViewModel(delayedRepo)
+        testDispatcher.scheduler.runCurrent()
+        val firstJob = testVm.fetchJob
+
+        testVm.loadTasks()
+        val secondJob = testVm.fetchJob
+
+        assertTrue(firstJob?.isCancelled == true)
+        assertFalse(secondJob?.isCancelled == true)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(testVm.uiState.value is TaskListUiState.Content)
+        val content = testVm.uiState.value as TaskListUiState.Content
+        assertEquals("Task version 2", content.tasks[0].title)
+    }
+
+    @Test
+    fun loadTasks_slowApiScenario_maintainsLoadingIndicatorDuringDelayAndCompletes() = runTest {
+        val cachedTasks = listOf(Task("TASK-SLOW-1", "Cached Task Before Delay"))
+        val taskFlow = MutableStateFlow<List<Task>>(cachedTasks)
+        val slowRepo = object : TaskRepository {
+            override fun getTasksFlow(): Flow<List<Task>> = taskFlow.asStateFlow()
+            override suspend fun getTasks(): NetworkResult<List<Task>> {
+                kotlinx.coroutines.delay(7000L)
+                return NetworkResult.Success(cachedTasks)
+            }
+            override suspend fun addTask(title: String, description: String, priority: TaskPriority) = NetworkResult.Error("N/A")
+            override suspend fun completeTask(id: String) = NetworkResult.Error("N/A")
+            override suspend fun toggleComplete(id: String) = NetworkResult.Error("N/A")
+            override fun getTaskById(id: String): Task? = cachedTasks.first()
+        }
+
+        val testVm = TaskListViewModel(slowRepo)
+        // Advance initial fetch from init { loadTasks() } to completion
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Verify initial state has finished loading and is Content(isRefreshing = false)
+        assertTrue(testVm.uiState.value is TaskListUiState.Content)
+        var contentState = testVm.uiState.value as TaskListUiState.Content
+        assertFalse(contentState.isRefreshing)
+
+        // Trigger Slow API loadTasks call while Content state is active
+        testVm.loadTasks()
+        testDispatcher.scheduler.runCurrent()
+
+        // During 7-second delay, verify isRefreshing is TRUE while cached tasks remain visible
+        contentState = testVm.uiState.value as TaskListUiState.Content
+        assertTrue(contentState.isRefreshing)
+        assertEquals(1, contentState.tasks.size)
+        assertEquals("Cached Task Before Delay", contentState.tasks[0].title)
+
+        // Advance scheduler past the 7000ms delay to finish the fetch
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // After delay completes, verify isRefreshing returns to FALSE and content is retained
+        contentState = testVm.uiState.value as TaskListUiState.Content
+        assertFalse(contentState.isRefreshing)
+        assertEquals(1, contentState.tasks.size)
+    }
 }

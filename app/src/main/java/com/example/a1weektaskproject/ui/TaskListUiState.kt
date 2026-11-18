@@ -18,7 +18,8 @@ sealed interface TaskListUiState {
         val completedCount: Int,
         val pendingCount: Int,
         val newlyCompletedTask: Task? = null,
-        val validationError: String? = null
+        val validationError: String? = null,
+        val isRefreshing: Boolean = false
     ) : TaskListUiState
 
     data object Empty : TaskListUiState

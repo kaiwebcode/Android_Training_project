@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor User as Employee / User
+    participant App as App / MainActivity
+    participant Repo as ApiTaskRepository
+    participant Room as Room Database (SSOT)
+    participant WM as WorkManager Scheduler
+    participant Worker as TaskSyncWorker
+    participant Server as Mock / Remote API
+
+    User->>App: Add Task / Complete Task (Offline / Airplane Mode)
+    App->>Repo: addTask() / completeTask()
+    Repo->>Room: Insert / Update Task (syncState = PENDING, syncOp = CREATE/UPDATE)
+    Repo->>WM: WorkManagerScheduler.scheduleSync(context)
+    WM-->>WM: EnqueueUniqueWork (ExistingWorkPolicy.KEEP, NetworkType.CONNECTED)
+
+    Note over WM,Worker: Network Connectivity Restored
+    WM->>Worker: Trigger doWork() (CoroutineWorker)
+    Worker->>Room: resetSyncingToPending() (Crash recovery)
+    Worker->>Room: getPendingSyncTasks()
+    Room-->>Worker: List<TaskEntity> [PENDING / SYNCING]
+    Worker->>Room: markTasksSyncing(ids) [Atomic Claiming]
+
+    loop For Each Pending Task
+        Worker->>Server: POST /tasks or PATCH /tasks/:id (with stable clientTaskId)
+        alt Case A: Success (200 OK / 201 Created)
+            Server-->>Worker: Success Response
+            Worker->>Room: markTaskSyncedConditional(id, capturedUpdatedAt)
+            Room-->>Worker: syncState = SYNCED, syncOp = NONE
+        else Case B: Timeout After Server Save / Transient Error
+            Server-->>Worker: SocketTimeoutException / HTTP 504 (Task committed on server)
+            Worker->>Room: revertTaskSyncingToPending(id)
+            Worker-->>WM: Result.retry() (Exponential Backoff)
+            Note over Worker,Server: WorkManager Retries with SAME clientTaskId
+            Worker->>Server: POST /tasks (Retry with stable clientTaskId)
+            Server->>Server: Detect existing clientTaskId (PRIMARY KEY constraint)
+            Server-->>Worker: 200 OK (Idempotent success, zero duplicates created)
+            Worker->>Room: markTaskSyncedConditional(id, capturedUpdatedAt)
+        end
+    end
+    Worker-->>WM: Result.success()

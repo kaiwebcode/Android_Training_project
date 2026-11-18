@@ -8,6 +8,7 @@ import com.example.a1weektaskproject.data.DemoScenario
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.data.TaskRepository
 import com.example.a1weektaskproject.data.remote.NetworkResult
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,10 @@ class TaskListViewModel(
     private val _uiState = MutableStateFlow<TaskListUiState>(TaskListUiState.Loading)
     val uiState: StateFlow<TaskListUiState> = _uiState.asStateFlow()
 
+    internal var fetchJob: Job? = null
+    private val inProgressTaskIds = mutableSetOf<String>()
+    private val inProgressAddTitles = mutableSetOf<String>()
+
     init {
         observeTasksFlow()
         loadTasks()
@@ -29,6 +34,8 @@ class TaskListViewModel(
         viewModelScope.launch {
             repository.getTasksFlow().collect { tasks ->
                 val currentState = _uiState.value
+                val currentlyRefreshing = (currentState is TaskListUiState.Content && currentState.isRefreshing && fetchJob?.isActive == true)
+
                 if (tasks.isNotEmpty()) {
                     val total = tasks.size
                     val completed = tasks.count { it.isCompleted }
@@ -42,7 +49,8 @@ class TaskListViewModel(
                         completedCount = completed,
                         pendingCount = pending,
                         newlyCompletedTask = newlyCompleted,
-                        validationError = validationErr
+                        validationError = validationErr,
+                        isRefreshing = currentlyRefreshing
                     )
                 } else if (currentState is TaskListUiState.Content) {
                     _uiState.value = TaskListUiState.Empty
@@ -52,21 +60,39 @@ class TaskListViewModel(
     }
 
     fun loadTasks() {
-        if (_uiState.value !is TaskListUiState.Content) {
+        val currentState = _uiState.value
+        if (currentState is TaskListUiState.Content) {
+            _uiState.value = currentState.copy(isRefreshing = true)
+        } else {
             _uiState.value = TaskListUiState.Loading
         }
-        viewModelScope.launch {
-            when (val result = repository.getTasks()) {
-                is NetworkResult.Success -> {
-                    val tasks = result.data
-                    if (tasks.isEmpty() && _uiState.value !is TaskListUiState.Content) {
-                        _uiState.value = TaskListUiState.Empty
+
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
+            try {
+                when (val result = repository.getTasks()) {
+                    is NetworkResult.Success -> {
+                        val tasks = result.data
+                        val stateAfterFetch = _uiState.value
+                        if (tasks.isEmpty() && stateAfterFetch !is TaskListUiState.Content) {
+                            _uiState.value = TaskListUiState.Empty
+                        } else if (stateAfterFetch is TaskListUiState.Content) {
+                            _uiState.value = stateAfterFetch.copy(isRefreshing = false)
+                        }
+                    }
+                    is NetworkResult.Error -> {
+                        val stateAfterFetch = _uiState.value
+                        if (stateAfterFetch is TaskListUiState.Content) {
+                            _uiState.value = stateAfterFetch.copy(isRefreshing = false)
+                        } else {
+                            _uiState.value = TaskListUiState.Error(result.message)
+                        }
                     }
                 }
-                is NetworkResult.Error -> {
-                    if (_uiState.value !is TaskListUiState.Content) {
-                        _uiState.value = TaskListUiState.Error(result.message)
-                    }
+            } finally {
+                val stateAtEnd = _uiState.value
+                if (stateAtEnd is TaskListUiState.Content && stateAtEnd.isRefreshing && fetchJob?.isCancelled != true) {
+                    _uiState.value = stateAtEnd.copy(isRefreshing = false)
                 }
             }
         }
@@ -97,39 +123,74 @@ class TaskListViewModel(
             return
         }
 
+        synchronized(inProgressAddTitles) {
+            if (inProgressAddTitles.contains(trimmedTitle)) return
+            inProgressAddTitles.add(trimmedTitle)
+        }
+
         viewModelScope.launch {
-            repository.addTask(trimmedTitle, description.trim(), priority)
-            loadTasks()
+            try {
+                repository.addTask(trimmedTitle, description.trim(), priority)
+                loadTasks()
+            } finally {
+                synchronized(inProgressAddTitles) {
+                    inProgressAddTitles.remove(trimmedTitle)
+                }
+            }
         }
     }
 
     fun completeTask(id: String) {
+        synchronized(inProgressTaskIds) {
+            if (inProgressTaskIds.contains(id)) {
+                return
+            }
+            inProgressTaskIds.add(id)
+        }
         val taskBefore = repository.getTaskById(id)
         val wasIncomplete = taskBefore != null && !taskBefore.isCompleted
 
         viewModelScope.launch {
-            val result = repository.completeTask(id)
-            if (result is NetworkResult.Success) {
-                val updatedTask = result.data
-                val currentState = _uiState.value
-                if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
-                    _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+            try {
+                val result = repository.completeTask(id)
+                if (result is NetworkResult.Success) {
+                    val updatedTask = result.data
+                    val currentState = _uiState.value
+                    if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
+                        _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+                    }
+                }
+            } finally {
+                synchronized(inProgressTaskIds) {
+                    inProgressTaskIds.remove(id)
                 }
             }
         }
     }
 
     fun toggleComplete(id: String) {
+        synchronized(inProgressTaskIds) {
+            if (inProgressTaskIds.contains(id)) {
+                return
+            }
+            inProgressTaskIds.add(id)
+        }
         val taskBefore = repository.getTaskById(id)
         val wasIncomplete = taskBefore != null && !taskBefore.isCompleted
 
         viewModelScope.launch {
-            val result = repository.toggleComplete(id)
-            if (result is NetworkResult.Success) {
-                val updatedTask = result.data
-                val currentState = _uiState.value
-                if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
-                    _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+            try {
+                val result = repository.toggleComplete(id)
+                if (result is NetworkResult.Success) {
+                    val updatedTask = result.data
+                    val currentState = _uiState.value
+                    if (currentState is TaskListUiState.Content && wasIncomplete && updatedTask.isCompleted) {
+                        _uiState.value = currentState.copy(newlyCompletedTask = updatedTask)
+                    }
+                }
+            } finally {
+                synchronized(inProgressTaskIds) {
+                    inProgressTaskIds.remove(id)
                 }
             }
         }
