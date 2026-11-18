@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pendingCountTextView: TextView
 
     private lateinit var menuIcon: ImageView
+    private lateinit var dashboardContainer: View
     private lateinit var loadingStateView: View
     private lateinit var emptyStateView: View
     private lateinit var emptyStateAddButton: MaterialButton
@@ -69,6 +70,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initViews() {
         menuIcon = findViewById(R.id.menuIcon)
+        dashboardContainer = findViewById(R.id.dashboardContainer)
         totalCountTextView = findViewById(R.id.totalCountTextView)
         completedCountTextView = findViewById(R.id.completedCountTextView)
         pendingCountTextView = findViewById(R.id.pendingCountTextView)
@@ -129,15 +131,23 @@ class MainActivity : AppCompatActivity() {
                     when (state) {
                         is TaskListUiState.Loading -> {
                             loadingStateView.visibility = View.VISIBLE
+                            dashboardContainer.visibility = View.GONE
                             emptyStateView.visibility = View.GONE
                             errorStateView.visibility = View.GONE
                             taskRecyclerView.visibility = View.GONE
                         }
                         is TaskListUiState.Content -> {
-                            loadingStateView.visibility = View.GONE
+                            if (state.isRefreshing) {
+                                loadingStateView.visibility = View.VISIBLE
+                                dashboardContainer.visibility = View.GONE
+                                taskRecyclerView.visibility = View.GONE
+                            } else {
+                                loadingStateView.visibility = View.GONE
+                                dashboardContainer.visibility = View.VISIBLE
+                                taskRecyclerView.visibility = View.VISIBLE
+                            }
                             emptyStateView.visibility = View.GONE
                             errorStateView.visibility = View.GONE
-                            taskRecyclerView.visibility = View.VISIBLE
 
                             taskAdapter.submitList(state.tasks)
                             totalCountTextView.text = state.totalCount.toString()
@@ -150,6 +160,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         is TaskListUiState.Empty -> {
                             loadingStateView.visibility = View.GONE
+                            dashboardContainer.visibility = View.VISIBLE
                             emptyStateView.visibility = View.VISIBLE
                             errorStateView.visibility = View.GONE
                             taskRecyclerView.visibility = View.GONE
@@ -160,6 +171,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         is TaskListUiState.Error -> {
                             loadingStateView.visibility = View.GONE
+                            dashboardContainer.visibility = View.GONE
                             emptyStateView.visibility = View.GONE
                             errorStateView.visibility = View.VISIBLE
                             taskRecyclerView.visibility = View.GONE
@@ -183,6 +195,7 @@ class MainActivity : AppCompatActivity() {
         val btnTimeout = dialogView.findViewById<MaterialButton>(R.id.demoTimeoutButton)
         val btnUiSync = dialogView.findViewById<MaterialButton>(R.id.demoUiSyncButton)
         val btnEmpty = dialogView.findViewById<MaterialButton>(R.id.demoEmptyStateButton)
+        val btnSlow = dialogView.findViewById<MaterialButton>(R.id.demoSlowApiButton)
 
         btnNormal.setOnClickListener {
             viewModel.setDemoScenario(DemoScenario.NORMAL_API)
@@ -211,6 +224,11 @@ class MainActivity : AppCompatActivity() {
 
         btnEmpty.setOnClickListener {
             viewModel.setDemoScenario(DemoScenario.EMPTY_RESPONSE)
+            bottomSheet.dismiss()
+        }
+
+        btnSlow.setOnClickListener {
+            viewModel.setDemoScenario(DemoScenario.SLOW_API_RESPONSE)
             bottomSheet.dismiss()
         }
 

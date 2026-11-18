@@ -11,8 +11,10 @@ import com.example.a1weektaskproject.data.remote.TaskApiService
 import com.example.a1weektaskproject.data.remote.model.GoRestTaskResponse
 import com.example.a1weektaskproject.data.remote.model.TaskDto
 import com.google.gson.JsonSyntaxException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +34,8 @@ enum class DemoScenario {
     HTTP_500_SERVER_ERROR,
     NETWORK_TIMEOUT,
     UI_STALE_STATE_SYNC,
-    EMPTY_RESPONSE
+    EMPTY_RESPONSE,
+    SLOW_API_RESPONSE
 }
 
 /**
@@ -63,6 +66,9 @@ class ApiTaskRepository(
         }
 
         try {
+            if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
+                delay(7000L)
+            }
             when (currentDemoScenario) {
                 DemoScenario.MALFORMED_JSON -> {
                     throw JsonSyntaxException("Malformed JSON syntax error in server response")
@@ -93,7 +99,7 @@ class ApiTaskRepository(
                 DemoScenario.EMPTY_RESPONSE -> {
                     return@withContext NetworkResult.Success(emptyList<Task>())
                 }
-                DemoScenario.NORMAL_API -> {
+                DemoScenario.NORMAL_API, DemoScenario.SLOW_API_RESPONSE -> {
                     val response = apiService.getTasks()
                     if (response.isSuccessful) {
                         val dtoList = response.body()?.data ?: emptyList()
@@ -132,8 +138,11 @@ class ApiTaskRepository(
                 }
             }
         } catch (e: Exception) {
+            if (e is CancellationException) {
+                throw e
+            }
             val userFriendlyMessage = mapExceptionToMessage(e)
-            if (cachedTasks.isNotEmpty() && currentDemoScenario == DemoScenario.NORMAL_API) {
+            if (cachedTasks.isNotEmpty() && (currentDemoScenario == DemoScenario.NORMAL_API || currentDemoScenario == DemoScenario.SLOW_API_RESPONSE)) {
                 NetworkResult.Success(cachedTasks)
             } else {
                 NetworkResult.Error(userFriendlyMessage, e)
@@ -168,6 +177,9 @@ class ApiTaskRepository(
         }
 
         try {
+            if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
+                delay(7000L)
+            }
             val dto = TaskDto(
                 id = newTask.id,
                 title = newTask.title,
@@ -181,7 +193,8 @@ class ApiTaskRepository(
                 entity = entity.copy(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE)
                 taskDao?.updateTask(entity)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             // Retain local PENDING state in Room if remote call fails
         }
 
@@ -201,12 +214,16 @@ class ApiTaskRepository(
             taskDao.updateTask(updatedEntity)
 
             try {
+                if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
+                    delay(7000L)
+                }
                 val response = apiService.updateTaskStatus(id, mapOf("status" to "done"))
                 if (response.isSuccessful) {
                     val syncedEntity = updatedEntity.copy(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE)
                     taskDao.updateTask(syncedEntity)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 // Retain local PENDING update in Room
             }
 

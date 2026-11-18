@@ -89,4 +89,15 @@
         android:textColor="#FFFFFF"
         app:cornerRadius="12dp" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/demoSlowApiButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="#8E44AD"
+        android:text="⏳ Day 12: Slow API Response (7s Delay)"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        app:cornerRadius="12dp" />
+
 </LinearLayout>

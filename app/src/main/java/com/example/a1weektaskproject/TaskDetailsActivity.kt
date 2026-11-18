@@ -3,12 +3,15 @@ package com.example.a1weektaskproject
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import com.example.a1weektaskproject.data.ApiTaskRepository
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.a1weektaskproject.data.Task
 import com.example.a1weektaskproject.data.TaskPriority
 import com.example.a1weektaskproject.data.TaskRepository
+import com.example.a1weektaskproject.ui.TaskDetailsViewModel
 import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.launch
 
@@ -17,7 +20,9 @@ class TaskDetailsActivity : AppCompatActivity() {
     private val repository: TaskRepository by lazy {
         (application as TaskApplication).repository
     }
-    private var currentTask: Task? = null
+    private val viewModel: TaskDetailsViewModel by viewModels {
+        TaskDetailsViewModel.Factory(repository)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,8 +41,7 @@ class TaskDetailsActivity : AppCompatActivity() {
             TaskPriority.MEDIUM
         }
 
-        // Retrieve from repository or reconstruct from Intent extras
-        currentTask = repository.getTaskById(taskId) ?: Task(
+        val initialTask = Task(
             id = taskId,
             title = if (title.isNotEmpty()) title else "Task Details",
             description = description,
@@ -45,6 +49,7 @@ class TaskDetailsActivity : AppCompatActivity() {
             priority = mappedPriority,
             dueDate = dueDate
         )
+        viewModel.initTask(initialTask)
 
         val backButton = findViewById<ImageView>(R.id.backButton)
         val detailTitle = findViewById<TextView>(R.id.detailTitle)
@@ -59,38 +64,54 @@ class TaskDetailsActivity : AppCompatActivity() {
             finish()
         }
 
-        currentTask?.let { task ->
-            detailTitle.text = task.title
-            detailSubtitle.text = if (task.description.isNotEmpty()) task.description else "Task ID: ${task.id}"
-            detailDescriptionValue.text = if (task.description.isNotEmpty()) task.description else "No additional description provided."
-            detailPriorityValue.text = "● ${task.priority.name.lowercase().replaceFirstChar { it.uppercase() }}"
-            when (task.priority) {
-                TaskPriority.LOW -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#6C5CE7"))
-                TaskPriority.MEDIUM -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#E65100"))
-                TaskPriority.HIGH -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#D63031"))
-            }
-            detailDueDateValue.text = task.dueDate
+        markCompleteButton.setOnClickListener {
+            viewModel.completeTask()
+        }
 
-            updateStatusUI(task, detailStatusBadge, markCompleteButton)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.task.collect { task ->
+                        task?.let {
+                            detailTitle.text = it.title
+                            detailSubtitle.text = if (it.description.isNotEmpty()) it.description else "Task ID: ${it.id}"
+                            detailDescriptionValue.text = if (it.description.isNotEmpty()) it.description else "No additional description provided."
+                            detailPriorityValue.text = "● ${it.priority.name.lowercase().replaceFirstChar { char -> char.uppercase() }}"
+                            when (it.priority) {
+                                TaskPriority.LOW -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#6C5CE7"))
+                                TaskPriority.MEDIUM -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#E65100"))
+                                TaskPriority.HIGH -> detailPriorityValue.setTextColor(android.graphics.Color.parseColor("#D63031"))
+                            }
+                            detailDueDateValue.text = it.dueDate
 
-            markCompleteButton.setOnClickListener {
-                lifecycleScope.launch {
-                    repository.completeTask(task.id)
-                    val updated = task.copy(isCompleted = true)
-                    currentTask = updated
-                    updateStatusUI(updated, detailStatusBadge, markCompleteButton)
+                            updateStatusUI(it, viewModel.isCompleting.value, detailStatusBadge, markCompleteButton)
+                        }
+                    }
+                }
+                launch {
+                    viewModel.isCompleting.collect { isCompleting ->
+                        viewModel.task.value?.let { task ->
+                            updateStatusUI(task, isCompleting, detailStatusBadge, markCompleteButton)
+                        }
+                    }
                 }
             }
         }
     }
 
-    private fun updateStatusUI(task: Task, badge: TextView, button: MaterialButton) {
+    private fun updateStatusUI(task: Task, isCompleting: Boolean, badge: TextView, button: MaterialButton) {
         if (task.isCompleted) {
             badge.text = "Completed"
             badge.setBackgroundResource(R.drawable.bg_status_completed)
             badge.setTextColor(android.graphics.Color.parseColor("#00B894"))
             button.isEnabled = false
             button.text = "Completed"
+        } else if (isCompleting) {
+            badge.text = "Updating..."
+            badge.setBackgroundResource(R.drawable.bg_status_pending)
+            badge.setTextColor(android.graphics.Color.parseColor("#FF7675"))
+            button.isEnabled = false
+            button.text = "⏳ Marking as Complete..."
         } else {
             badge.text = "Pending"
             badge.setBackgroundResource(R.drawable.bg_status_pending)

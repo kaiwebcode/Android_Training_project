@@ -59,3 +59,12 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 - **Step 2 — Observe:** Logcat showed requests directed to `/public/v3/tasks` (GoRest path) and cleartext HTTP security blocks by Android OS.
 - **Step 3 — Isolate:** `TaskSyncWorker` was sharing GoRest `TaskApiService` with `@POST("public/v3/tasks")`, and `AndroidManifest.xml` lacked `android:usesCleartextTraffic="true"`.
 - **Step 4 — Verify:** Created dedicated `TaskSyncApiService` and `ApiSyncClient` targeting `http://192.168.1.114:3000/tasks`, added `android:usesCleartextTraffic="true"`, and set `ExistingWorkPolicy.REPLACE`. Re-tested live on physical device: Task 1, Task 2, and Task 3 successfully synced to mock server (`SYNCED`, `syncOp = NONE`, zero duplicates).
+
+---
+
+## Defect 8: Duplicate Action Execution & Stale Response Overwrite Race Conditions
+- **Symptom / Description:** Rapid repeated taps on "Complete" or "Add Task" dispatches duplicate network requests; slow fetch requests overwrote newer UI state if completed out of order.
+- **Step 1 — Reproduce:** Simulated slow API response (7s delay) and rapidly tapped "Complete" button 5 times or tapped "Retry" mid-load.
+- **Step 2 — Observe:** Multiple coroutines launched concurrently for the same task ID; obsolete loading requests completed after newer requests and overwrote UI state.
+- **Step 3 — Isolate:** `TaskListViewModel` lacked synchronous in-progress guards (`inProgressTaskIds`) and obsolete job cancellation (`fetchJob?.cancel()`), while `ApiTaskRepository` swallowed `CancellationException` in generic catch blocks.
+- **Step 4 — Verify:** Added synchronous in-progress set guards with `finally` cleanup, added `fetchJob?.cancel()` in `loadTasks()`, re-threw `CancellationException` in repository catch blocks, and refactored `TaskDetailsActivity` with `TaskDetailsViewModel`. Verified via 36 unit tests including `completeTask_duplicateTaps_executesOnlyOnce` and `loadTasks_obsoleteJobCancelled_onlyLatestResponseUpdatesUi`. Result: **36 PASSED, 0 FAILED**.
