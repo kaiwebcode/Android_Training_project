@@ -32,7 +32,7 @@ object WorkManagerScheduler {
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
             WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
             syncWorkRequest
         )
     }

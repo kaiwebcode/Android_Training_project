@@ -1,17 +1,8 @@
-# Current Status — Week 3 Day 12 Final Verification Complete
+# Current Status — Week 3 Day 13
 
-## Done (Day 12 Deliverables Completed)
-- [x] Implemented coroutine state safety, duplicate-action prevention (`inProgressTaskIds` & `inProgressAddTitles`), obsolete job cancellation (`fetchJob?.cancel()`), and `CancellationException` rethrowing in repository catch blocks.
-- [x] Added debug-only `SLOW_API_RESPONSE` scenario with a 7-second cancellable delay using `kotlinx.coroutines.delay(7000L)` without blocking the main thread.
-- [x] Refactored `TaskDetailsActivity` completion handling using `TaskDetailsViewModel` so task completion state and busy indicator are retained across screen rotation and lifecycle changes.
-- [x] Verified full unit test suite (**36 PASSED, 0 FAILED**), including new concurrency tests:
-  - `completeTask_duplicateTaps_executesOnlyOnce`
-  - `loadTasks_obsoleteJobCancelled_onlyLatestResponseUpdatesUi`
-  - `completeTask_updatesTaskToCompletedAndResetsCompletingState`
-- [x] Preserved all existing Room offline persistence, WorkManager synchronization, GoRest REST API, Demo Mode scenarios, and mock sync server functionality.
+- **Bug A:** The captured server snapshot contains exactly one matching UUID. The worker regression verifies HTTP 504 after save, replay under the same ID, and a PATCH that persists the newer local edit. A live device 504 sequence was not captured.
+- **Bug B:** Retrofit sends the concrete PATCH DTO. Room v6 upgrades supported v1–v5 databases directly, preserves task fields, and quarantines unverifiable origins. The worker claims verified LOCAL tasks only, recovers interrupted work, and retries unapplied edits. The existing device logs capture CREATE and an empty queue.
+- **Bug C:** The manual OnePlus record shows completion persisted in Room through rotation. A confirmed post-rotation refresh is still unverified.
+- **Verification:** `testDebugUnitTest` passed 45 tests. `assembleDebug` succeeded. `connectedDebugAndroidTest` passed 14 tests on the OnePlus EB2101 under a separate test application ID, including five Room migration tests covering seven populated upgrade fixtures.
 
-## Test & Build Verification Results
-- `:app:testDebugUnitTest`: **36 PASSED, 0 SKIPPED, 0 FAILED**.
-- `:app:assembleDebug`: **BUILD SUCCESSFUL**.
-- `git diff --check`: **0 warnings / EXIT CODE 0**.
-- Git Branch: `feature/workmanager-sync`.
+See [TEST_REPORT.md](TEST_REPORT.md) for the test commands and [CODEX_REVIEW_DAY13.md](CODEX_REVIEW_DAY13.md) for the fixes and provenance limitation.

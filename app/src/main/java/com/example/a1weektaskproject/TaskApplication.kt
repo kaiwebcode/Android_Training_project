@@ -21,7 +21,7 @@ class TaskApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        ApiTaskRepository.initialize(database.taskDao())
+        ApiTaskRepository.initialize(database.taskDao()) { WorkManagerScheduler.scheduleSync(this) }
         WorkManagerScheduler.scheduleSync(this)
     }
 

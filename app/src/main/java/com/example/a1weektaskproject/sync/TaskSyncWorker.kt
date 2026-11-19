@@ -10,9 +10,12 @@ import com.example.a1weektaskproject.data.local.TaskDao
 import com.example.a1weektaskproject.data.remote.ApiSyncClient
 import com.example.a1weektaskproject.data.remote.TaskSyncApiService
 import com.example.a1weektaskproject.data.remote.TaskSyncDto
+import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
+
+import com.example.a1weektaskproject.data.remote.TaskSyncUpdateDto
 
 /**
  * WorkManager CoroutineWorker performing reliable background synchronization of pending tasks with mock sync server.
@@ -76,45 +79,56 @@ class TaskSyncWorker(
                 return Result.success()
             }
 
-            // 3. Atomically claim tasks -> mark SYNCING
-            val taskIds = pendingTasks.map { it.id }
-            dao.markTasksSyncing(taskIds)
-
             var hasTransientFailure = false
+            var hasPendingRevertedTasks = false
 
-            for (task in pendingTasks) {
-                val capturedUpdatedAt = task.updatedAt
+            for (candidate in pendingTasks) {
+                val task = dao.claimForSync(candidate.id) ?: continue
                 logD(TAG, "Syncing task clientTaskId=${task.id}, title='${task.title}', syncOp=${task.syncOp}")
 
                 try {
-                    val isCreate = task.syncOp == SyncOp.CREATE
-                    val response = if (isCreate) {
-                        val dto = TaskSyncDto(
+                    val createDto = if (task.syncOp == SyncOp.CREATE) {
+                        TaskSyncDto(
                             clientTaskId = task.id,
+                            title = task.title.trim(),
+                            description = task.description.trim(),
+                            completed = task.completed,
+                            priority = task.priority.ifEmpty { "MEDIUM" },
+                            dueDate = task.dueDate.ifEmpty { "Today" }
+                        )
+                    } else {
+                        null
+                    }
+                    val response = if (createDto != null) {
+                        api.createTask(createDto)
+                    } else {
+                        val updateDto = TaskSyncUpdateDto(
+                            completed = task.completed,
                             title = task.title,
                             description = task.description,
-                            completed = task.completed,
                             priority = task.priority,
-                            dueDate = task.dueDate,
-                            version = 1
+                            dueDate = task.dueDate
                         )
-                        api.createTask(dto)
-                    } else {
-                        api.updateTaskStatus(
-                            task.id,
-                            mapOf(
-                                "completed" to task.completed,
-                                "title" to task.title,
-                                "description" to task.description,
-                                "priority" to task.priority,
-                                "dueDate" to task.dueDate
-                            )
-                        )
+                        api.updateTaskStatus(task.id, updateDto)
                     }
 
-                    if (response.isSuccessful || response.code() == 200 || response.code() == 201) {
-                        logD(TAG, "Successfully synced task clientTaskId=${task.id} with mock server.")
-                        dao.markTaskSyncedConditional(task.id, capturedUpdatedAt)
+                    if (response.isSuccessful) {
+                        val acknowledged = response.body()?.task
+                        if (createDto != null && acknowledged?.clientTaskId != task.id) {
+                            logE(TAG, "Mock CREATE response did not acknowledge clientTaskId=${task.id}")
+                            dao.revertTaskSyncingToPending(task.id)
+                            hasTransientFailure = true
+                            continue
+                        }
+                        val needsPatch = createDto != null &&
+                            acknowledged?.copy(version = createDto.version) != createDto
+                        if (dao.acknowledgeMockSync(task, needsPatch)) {
+                            logD(TAG, "Successfully synced task clientTaskId=${task.id} with mock server.")
+                        } else {
+                            logD(TAG, "Retrying unacknowledged changes for clientTaskId=${task.id}.")
+                            dao.revertTaskSyncingToPending(task.id)
+                            hasPendingRevertedTasks = true
+                        }
                     } else {
                         val code = response.code()
                         logE(TAG, "Mock server returned error code $code for clientTaskId=${task.id}")
@@ -126,6 +140,7 @@ class TaskSyncWorker(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     logE(TAG, "Exception during sync of clientTaskId=${task.id}: ${e.message}", e)
                     dao.revertTaskSyncingToPending(task.id)
                     when (e) {
@@ -144,8 +159,8 @@ class TaskSyncWorker(
                 }
             }
 
-            return if (hasTransientFailure) {
-                logD(TAG, "Sync completed with transient failures. Requesting WorkManager retry.")
+            return if (hasTransientFailure || hasPendingRevertedTasks) {
+                logD(TAG, "Sync completed with transient failures or pending local edits. Requesting WorkManager retry.")
                 Result.retry()
             } else {
                 logD(TAG, "Sync completed successfully for all tasks.")

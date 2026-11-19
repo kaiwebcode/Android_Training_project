@@ -14,12 +14,14 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.a1weektaskproject.IsolatedTestRunner"
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
     }
+
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
 
     // LOCAL TESTING ONLY: the default Android debug key is not suitable for production.
     signingConfigs {
@@ -36,6 +38,9 @@ android {
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
+            if (providers.gradleProperty("day13IsolatedTest").orNull == "true") {
+                applicationIdSuffix = ".day13test"
+            }
         }
         release {
             signingConfig = signingConfigs.getByName("debug")
@@ -71,6 +76,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.androidx.test.core.ktx)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.mockito:mockito-core:5.14.2")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

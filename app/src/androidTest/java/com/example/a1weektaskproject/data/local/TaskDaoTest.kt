@@ -123,8 +123,7 @@ class TaskDaoTest {
     @Test
     fun persistenceAcrossReopeningDatabase() {
         runBlocking {
-            val dbName = "test_persistence.db"
-            context.deleteDatabase(dbName)
+            val dbName = "test-persistence-${UUID.randomUUID()}.db"
 
             val db1 = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
                 .allowMainThreadQueries()
@@ -147,8 +146,6 @@ class TaskDaoTest {
             assertEquals("Persistent Task", retrieved?.title)
             assertEquals(SyncState.PENDING, retrieved?.syncState)
             db2.close()
-
-            context.deleteDatabase(dbName)
         }
     }
 
@@ -160,7 +157,8 @@ class TaskDaoTest {
                 title = "Pending Task",
                 syncState = SyncState.PENDING,
                 syncOp = SyncOp.CREATE,
-                updatedAt = 100L
+                updatedAt = 100L,
+                origin = TaskOrigin.LOCAL
             )
             val syncedTask = TaskEntity(
                 id = "s-1",
@@ -191,7 +189,8 @@ class TaskDaoTest {
                 id = "stuck-1",
                 title = "Stuck Task",
                 syncState = SyncState.SYNCING,
-                syncOp = SyncOp.CREATE
+                syncOp = SyncOp.CREATE,
+                origin = TaskOrigin.LOCAL
             )
             taskDao.insertTask(stuckTask)
 
