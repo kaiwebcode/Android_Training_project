@@ -18,6 +18,14 @@ data class TaskSyncDto(
     @SerializedName("version") val version: Int = 1
 )
 
+data class TaskSyncUpdateDto(
+    @SerializedName("completed") val completed: Boolean = false,
+    @SerializedName("title") val title: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("priority") val priority: String? = null,
+    @SerializedName("dueDate") val dueDate: String? = null
+)
+
 data class TaskSyncResponse(
     @SerializedName("status") val status: String?,
     @SerializedName("message") val message: String?,
@@ -37,7 +45,7 @@ interface TaskSyncApiService {
     @PATCH("tasks/{clientTaskId}")
     suspend fun updateTaskStatus(
         @Path("clientTaskId") clientTaskId: String,
-        @Body body: Map<String, Any>
+        @Body body: TaskSyncUpdateDto
     ): Response<TaskSyncResponse>
 
     @GET("tasks")

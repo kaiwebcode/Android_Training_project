@@ -1,5 +1,6 @@
 package com.example.a1weektaskproject.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.example.a1weektaskproject.data.Task
@@ -17,6 +18,12 @@ object SyncOp {
     const val NONE = "NONE"
 }
 
+object TaskOrigin {
+    const val LOCAL = "LOCAL"
+    const val GOREST = "GOREST"
+    const val UNKNOWN = "UNKNOWN"
+}
+
 /**
  * Room Entity modeling task data with offline synchronization lifecycle state.
  */
@@ -30,7 +37,9 @@ data class TaskEntity(
     val dueDate: String = "Today",
     val updatedAt: Long = System.currentTimeMillis(),
     val syncState: String = SyncState.SYNCED,
-    val syncOp: String = SyncOp.NONE
+    val syncOp: String = SyncOp.NONE,
+    @ColumnInfo(name = "origin", defaultValue = "UNKNOWN")
+    val origin: String = TaskOrigin.UNKNOWN
 ) {
     /**
      * Maps TaskEntity to immutable domain Task model.
@@ -58,7 +67,8 @@ data class TaskEntity(
 fun Task.toEntity(
     syncState: String = SyncState.SYNCED,
     syncOp: String = SyncOp.NONE,
-    updatedAt: Long = System.currentTimeMillis()
+    updatedAt: Long = System.currentTimeMillis(),
+    origin: String = TaskOrigin.UNKNOWN
 ): TaskEntity {
     return TaskEntity(
         id = id,
@@ -69,6 +79,7 @@ fun Task.toEntity(
         dueDate = dueDate,
         updatedAt = updatedAt,
         syncState = syncState,
-        syncOp = syncOp
+        syncOp = syncOp,
+        origin = origin
     )
 }

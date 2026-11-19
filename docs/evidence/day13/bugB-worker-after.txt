@@ -1,0 +1,7 @@
+--------- beginning of main
+11-19 14:01:54.214 D/TaskSyncWorker(25545): TaskSyncWorker.doWork() started...
+11-19 14:01:54.218 D/TaskSyncWorker(25545): performSync() executing...
+11-19 14:01:54.233 D/TaskSyncWorker(25545): Found 1 pending tasks to synchronize.
+11-19 14:01:54.242 D/TaskSyncWorker(25545): Syncing task clientTaskId=20534484-66b9-4d15-a42c-ebaff734f195, title='New disposable', syncOp=CREATE
+11-19 14:01:54.352 D/TaskSyncWorker(25545): Successfully synced task clientTaskId=20534484-66b9-4d15-a42c-ebaff734f195 with mock server.
+11-19 14:01:54.361 D/TaskSyncWorker(25545): Sync completed successfully for all tasks.

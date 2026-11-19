@@ -68,3 +68,42 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 - **Step 2 — Observe:** Multiple coroutines launched concurrently for the same task ID; obsolete loading requests completed after newer requests and overwrote UI state.
 - **Step 3 — Isolate:** `TaskListViewModel` lacked synchronous in-progress guards (`inProgressTaskIds`) and obsolete job cancellation (`fetchJob?.cancel()`), while `ApiTaskRepository` swallowed `CancellationException` in generic catch blocks.
 - **Step 4 — Verify:** Added synchronous in-progress set guards with `finally` cleanup, added `fetchJob?.cancel()` in `loadTasks()`, re-threw `CancellationException` in repository catch blocks, and refactored `TaskDetailsActivity` with `TaskDetailsViewModel`. Verified via 36 unit tests including `completeTask_duplicateTaps_executesOnlyOnce` and `loadTasks_obsoleteJobCancelled_onlyLatestResponseUpdatesUi`. Result: **36 PASSED, 0 FAILED**.
+
+---
+
+## Defect 9: Bug A — Duplicate Task After Retry & Idempotent Client UUID Handling
+- **Symptom / Description:** Potential duplicate task creation on mock sync server (`http://192.168.1.113:3000/tasks`) during network retry attempts.
+- **Step 1 — Reproduce:** Created local task `"Day 13 bug A"` on OnePlus EB2101 device connected to Node.js mock sync server.
+- **Step 2 — Observe:** Inspected Node.js mock server endpoints `GET /tasks` before and after synchronization (`docs/evidence/day13/bugA-before.json` and `docs/evidence/day13/bugA-after.json`). Exactly 1 unique UUID task record (`clientTaskId = "cbe9ffbb-4dcd-45e0-a94c-d7698e7aaeac"`) was created on server (`docs/evidence/day13/bugA-unique-task.json`), and Room held `syncState = SYNCED`, `syncOp = NONE`.
+- **Step 3 — Isolate:** Analyzed client-side UUID generation and `TaskSyncWorker` retry execution paths. The client generates a stable UUID `id` (`clientTaskId`) upon task creation.
+- **Step 4 — Hypothesize:** If a network timeout occurs after server persistence during response delivery, retrying with the same `clientTaskId` avoids duplicates on servers enforcing unique key constraints by `clientTaskId`. (Note: A live HTTP 504 server timeout trace was not captured in logs during testing; evidence reflects stable UUID client-side handling and unique server entry).
+- **Step 5 — Fix:** Preserved stable UUID generation in `ApiTaskRepository.addTask()` and idempotent `clientTaskId` transmission in `TaskSyncWorker`. On a successful CREATE replay, compare the returned task to the submitted snapshot and recheck the current Room row. Queue a PATCH for a newer edit under the same UUID.
+- **Step 6 — Verify:** Confirmed via `docs/evidence/day13/bugA-after.json` and `bugA-unique-task.json` that 1 unique server task exists for `clientTaskId = "cbe9ffbb-4dcd-45e0-a94c-d7698e7aaeac"` and Room DB contains `syncState = SYNCED`, `syncOp = NONE`. Unit test `performSync_handlesTimeoutAfterServerSaveIdempotentlyWithoutDuplicates()` passed.
+
+---
+
+## Defect 10: Bug B — Queue Stuck in SYNCING (PATCH and origin isolation)
+- **Reproduce:** Run WorkManager with the nine legacy GoRest tasks marked PENDING/UPDATE.
+- **Observe:** The captured worker log recorded Retrofit rejecting `Map<String, ?>` before making a PATCH request. The later logs show one successful local CREATE and one run with an empty queue.
+- **Isolate:** The separate mock client requires a concrete PATCH body. Older databases also contain origin labels that the v4 and v5 migrations could assign from sync metadata alone.
+- **Hypothesize:** A typed PATCH body, verified local origin at claim time, and a retry after a stale acknowledgment address the failures without discarding any task edits.
+- **Fix:** Use `TaskSyncUpdateDto` and migrate Room v1–v5 directly to v6. Keep verified GoRest labels from v2/v3. Set unclear legacy origins to UNKNOWN. Match exact GoRest IDs to confirm UNKNOWN rows through an origin-only update. Claim only eligible LOCAL rows. Recover interrupted SYNCING rows and retry a failed acknowledgment.
+- **Verify:** See the current build and device results in [TEST_REPORT.md](TEST_REPORT.md). The existing device logs establish CREATE and empty-queue behavior.
+
+---
+
+## Defect 11: Bug C — Task Completion Reversal Across Screen Rotation
+- **Symptom / Description:** Potential reversal of task completion status (`completed = true` -> `completed = false`) upon device screen rotation.
+- **Step 1 — Reproduce:** Marked task `"Day 13 Rotation C"` completed (`completed = true`) on OnePlus EB2101 device. Rotated device screen (configuration change).
+- **Step 2 — Observe:** Inspected Room database after rotation. Task `"Day 13 Rotation C"` remained `completed = 1` (`true`), `origin = LOCAL`, `syncState = SYNCED`, `syncOp = NONE`.
+- **Step 3 — Isolate:** Analyzed `TaskDetailsViewModel` and `TaskListViewModel` state preservation across rotation. `TaskDetailsViewModel` retains task state in `StateFlow` across Activity re-creation, and local tasks (`origin = LOCAL`) are protected in `ApiTaskRepository.getTasks()` from being overwritten by remote GoRest responses.
+- **Step 4 — Hypothesize:** Preserving ViewModel state across rotation and protecting local/synced tasks from remote overwrite prevents completion reversal.
+- **Step 5 — Fix:** Maintained ViewModel state flow lifecycle and protected local tasks in `ApiTaskRepository.getTasks()`.
+- **Step 6 — Verify:** Screen rotation verified on OnePlus EB2101 device; task `"Day 13 Rotation C"` retained `completed = 1` (`true`), `origin = LOCAL`, `syncState = SYNCED`, `syncOp = NONE` in Room database after rotation.
+
+---
+
+## Known Limitations & Unverified Scenarios
+1. **Live HTTP 504 Gateway Timeout Trace (Bug A):** A live HTTP 504 server gateway timeout trace was not captured in physical device logs during testing. Client-side stable UUID handling and idempotency are verified via unit tests and mock server payload logs (`docs/evidence/day13/bugA-after.json`).
+2. **Post-rotation refresh (Bug C):** The manual record covers Room after rotation. The rendered status and Room value after a confirmed subsequent refresh remain unverified.
+3. **Legacy provenance:** A row stays UNKNOWN until its origin can be verified. Its content and pending edits stay in Room while uploads are paused.

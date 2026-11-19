@@ -7,10 +7,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Dedicated Retrofit client for mock sync server (http://192.168.1.114:3000/).
+ * Dedicated Retrofit client for mock sync server (http://192.168.1.113:3000/).
  */
 object ApiSyncClient {
-    var BASE_URL = "http://192.168.1.114:3000/"
+    var BASE_URL = "http://192.168.1.113:3000/"
 
     private val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {

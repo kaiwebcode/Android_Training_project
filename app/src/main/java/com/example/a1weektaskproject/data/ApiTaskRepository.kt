@@ -3,7 +3,7 @@ package com.example.a1weektaskproject.data
 import com.example.a1weektaskproject.data.local.SyncOp
 import com.example.a1weektaskproject.data.local.SyncState
 import com.example.a1weektaskproject.data.local.TaskDao
-import com.example.a1weektaskproject.data.local.TaskEntity
+import com.example.a1weektaskproject.data.local.TaskOrigin
 import com.example.a1weektaskproject.data.local.toEntity
 import com.example.a1weektaskproject.data.remote.ApiClient
 import com.example.a1weektaskproject.data.remote.NetworkResult
@@ -44,7 +44,8 @@ enum class DemoScenario {
 class ApiTaskRepository(
     val apiService: TaskApiService = ApiClient.taskApiService,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val taskDao: TaskDao? = null
+    private val taskDao: TaskDao? = null,
+    private val scheduleMockSync: () -> Unit = {}
 ) : TaskRepository {
 
     private val localInMemoryTasks = mutableListOf<Task>()
@@ -106,17 +107,8 @@ class ApiTaskRepository(
                         val remoteTasks = dtoList.map { it.toDomainTask() }
 
                         if (taskDao != null) {
-                            val entitiesToInsert = mutableListOf<TaskEntity>()
                             for (remoteTask in remoteTasks) {
-                                val existingEntity = taskDao.getTaskById(remoteTask.id)
-                                if (existingEntity != null && (existingEntity.syncState == SyncState.PENDING || existingEntity.syncState == SyncState.SYNCING || isUuid(existingEntity.id))) {
-                                    // Protect local pending/syncing changes or local UUID tasks from being overwritten by GoRest API
-                                    continue
-                                }
-                                entitiesToInsert.add(remoteTask.toEntity(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE))
-                            }
-                            if (entitiesToInsert.isNotEmpty()) {
-                                taskDao.insertTasks(entitiesToInsert)
+                                taskDao.cacheGoRestTask(remoteTask.toEntity(origin = TaskOrigin.GOREST))
                             }
                         } else {
                             val merged = (localInMemoryTasks + remoteTasks).distinctBy { it.id }
@@ -163,18 +155,18 @@ class ApiTaskRepository(
             priority = priority
         )
 
-        var entity = newTask.toEntity(
-            syncState = SyncState.PENDING,
-            syncOp = SyncOp.CREATE,
-            updatedAt = System.currentTimeMillis()
-        )
-
         if (taskDao != null) {
-            taskDao.insertTask(entity)
-        } else {
-            localInMemoryTasks.add(0, newTask)
-            _localInMemoryFlow.value = localInMemoryTasks.toList()
+            taskDao.insertTask(newTask.toEntity(
+                syncState = SyncState.PENDING,
+                syncOp = SyncOp.CREATE,
+                origin = TaskOrigin.LOCAL
+            ))
+            scheduleMockSync()
+            return@withContext NetworkResult.Success(newTask)
         }
+
+        localInMemoryTasks.add(0, newTask)
+        _localInMemoryFlow.value = localInMemoryTasks.toList()
 
         try {
             if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
@@ -188,45 +180,34 @@ class ApiTaskRepository(
                 completed = false,
                 priority = newTask.priority.name.lowercase()
             )
-            val response = apiService.createTask(dto)
-            if (response.isSuccessful) {
-                entity = entity.copy(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE)
-                taskDao?.updateTask(entity)
-            }
+            apiService.createTask(dto)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // Retain local PENDING state in Room if remote call fails
         }
 
         NetworkResult.Success(newTask)
     }
 
     override suspend fun completeTask(id: String): NetworkResult<Task> = withContext(ioDispatcher) {
-        val existingEntity = taskDao?.getTaskById(id)
-        if (existingEntity != null) {
-            val newSyncOp = if (existingEntity.syncOp == SyncOp.CREATE) SyncOp.CREATE else SyncOp.UPDATE
-            val updatedEntity = existingEntity.copy(
-                completed = true,
-                syncState = SyncState.PENDING,
-                syncOp = newSyncOp,
-                updatedAt = System.currentTimeMillis()
-            )
-            taskDao.updateTask(updatedEntity)
-
-            try {
-                if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
-                    delay(7000L)
+        val updatedEntity = taskDao?.editCompletion(id, completed = true, updatedAt = System.currentTimeMillis())
+        if (updatedEntity != null) {
+            when (updatedEntity.origin) {
+                TaskOrigin.LOCAL -> scheduleMockSync()
+                TaskOrigin.GOREST -> {
+                    try {
+                        if (currentDemoScenario == DemoScenario.SLOW_API_RESPONSE) {
+                            delay(7000L)
+                        }
+                        val response = apiService.updateTaskStatus(id, mapOf("status" to "done"))
+                        if (response.isSuccessful) {
+                            taskDao.markTaskSyncedConditional(id, updatedEntity.updatedAt)
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        // Retain the pending edit in Room.
+                    }
                 }
-                val response = apiService.updateTaskStatus(id, mapOf("status" to "done"))
-                if (response.isSuccessful) {
-                    val syncedEntity = updatedEntity.copy(syncState = SyncState.SYNCED, syncOp = SyncOp.NONE)
-                    taskDao.updateTask(syncedEntity)
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                // Retain local PENDING update in Room
             }
-
             return@withContext NetworkResult.Success(updatedEntity.toDomainTask())
         }
 
@@ -257,16 +238,9 @@ class ApiTaskRepository(
     }
 
     override suspend fun toggleComplete(id: String): NetworkResult<Task> = withContext(ioDispatcher) {
-        val existingEntity = taskDao?.getTaskById(id)
-        if (existingEntity != null) {
-            val newSyncOp = if (existingEntity.syncOp == SyncOp.CREATE) SyncOp.CREATE else SyncOp.UPDATE
-            val updatedEntity = existingEntity.copy(
-                completed = !existingEntity.completed,
-                syncState = SyncState.PENDING,
-                syncOp = newSyncOp,
-                updatedAt = System.currentTimeMillis()
-            )
-            taskDao.updateTask(updatedEntity)
+        val updatedEntity = taskDao?.editCompletion(id, completed = null, updatedAt = System.currentTimeMillis())
+        if (updatedEntity != null) {
+            if (updatedEntity.origin == TaskOrigin.LOCAL) scheduleMockSync()
             return@withContext NetworkResult.Success(updatedEntity.toDomainTask())
         }
 
@@ -317,11 +291,9 @@ class ApiTaskRepository(
         }
     }
 
-    private fun isUuid(id: String): Boolean {
-        return try {
-            UUID.fromString(id) != null && id.length == 36
-        } catch (_: Exception) {
-            false
+    suspend fun reconcileGoRestTaskOrigins(knownGoRestIds: Set<String>) = withContext(ioDispatcher) {
+        for (id in knownGoRestIds) {
+            taskDao?.confirmGoRestOrigin(id)
         }
     }
 
@@ -329,10 +301,10 @@ class ApiTaskRepository(
         @Volatile
         private var instance: ApiTaskRepository? = null
 
-        fun initialize(taskDao: TaskDao) {
+        fun initialize(taskDao: TaskDao, scheduleMockSync: () -> Unit) {
             synchronized(this) {
                 if (instance == null) {
-                    instance = ApiTaskRepository(taskDao = taskDao)
+                    instance = ApiTaskRepository(taskDao = taskDao, scheduleMockSync = scheduleMockSync)
                 }
             }
         }

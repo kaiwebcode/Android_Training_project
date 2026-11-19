@@ -1,0 +1,82 @@
+{
+    "count":  7,
+    "tasks":  [
+                  {
+                      "clientTaskId":  "cbe9ffbb-4dcd-45e0-a94c-d7698e7aaeac",
+                      "title":  "Day 13 bug A",
+                      "description":  "Optional",
+                      "completed":  false,
+                      "priority":  "HIGH",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-19 07:07:46",
+                      "updatedAt":  "2026-11-19 07:07:46"
+                  },
+                  {
+                      "clientTaskId":  "9b7ffc91-4cce-47c0-95c7-78f54302a58f",
+                      "title":  "New task",
+                      "description":  "Optional...",
+                      "completed":  true,
+                      "priority":  "HIGH",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-19 07:00:27",
+                      "updatedAt":  "2026-11-19 07:00:27"
+                  },
+                  {
+                      "clientTaskId":  "8e3d4ddb-d1eb-4423-b98f-71dbd0625193",
+                      "title":  "New tasks 2",
+                      "description":  "Optional",
+                      "completed":  true,
+                      "priority":  "MEDIUM",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-19 07:00:27",
+                      "updatedAt":  "2026-11-19 07:00:27"
+                  },
+                  {
+                      "clientTaskId":  "61e4a66f-7b7e-439c-9d8d-d835e8bb3914",
+                      "title":  "Task 4",
+                      "description":  "Optional",
+                      "completed":  false,
+                      "priority":  "MEDIUM",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-17 10:45:00",
+                      "updatedAt":  "2026-11-17 10:45:00"
+                  },
+                  {
+                      "clientTaskId":  "0bc3cd06-d5de-45c0-87e7-0421ee829eaf",
+                      "title":  "Task 2",
+                      "description":  "Optional",
+                      "completed":  false,
+                      "priority":  "MEDIUM",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-17 08:51:59",
+                      "updatedAt":  "2026-11-17 08:51:59"
+                  },
+                  {
+                      "clientTaskId":  "b46bd80d-9a8f-4e9f-9731-d7cbf1a0c80e",
+                      "title":  "Task 3",
+                      "description":  "Optional",
+                      "completed":  false,
+                      "priority":  "HIGH",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-17 08:51:59",
+                      "updatedAt":  "2026-11-17 08:51:59"
+                  },
+                  {
+                      "clientTaskId":  "73216439-df11-4b43-88a1-d5fe81155181",
+                      "title":  "Task 1",
+                      "description":  "Optional",
+                      "completed":  false,
+                      "priority":  "LOW",
+                      "dueDate":  "Nov 8, 2025",
+                      "version":  1,
+                      "createdAt":  "2026-11-17 08:36:24",
+                      "updatedAt":  "2026-11-17 08:36:24"
+                  }
+              ]
+}

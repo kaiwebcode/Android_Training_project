@@ -9,6 +9,7 @@ import com.example.a1weektaskproject.data.local.TaskDao
 import com.example.a1weektaskproject.data.local.TaskEntity
 import com.example.a1weektaskproject.data.local.SyncState
 import com.example.a1weektaskproject.data.local.SyncOp
+import com.example.a1weektaskproject.data.local.TaskOrigin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.google.gson.JsonSyntaxException
@@ -385,7 +386,8 @@ class ApiTaskRepositoryTest {
             id = collidingId,
             title = "Original Local Task 1",
             syncState = SyncState.SYNCED,
-            syncOp = SyncOp.NONE
+            syncOp = SyncOp.NONE,
+            origin = TaskOrigin.LOCAL
         )
 
         val fakeDao = object : TaskDao {
@@ -396,6 +398,10 @@ class ApiTaskRepositoryTest {
             override suspend fun insertTask(task: TaskEntity) { map[task.id] = task }
             override suspend fun insertTasks(tasks: List<TaskEntity>) { tasks.forEach { map[it.id] = it } }
             override suspend fun updateTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun confirmGoRestOrigin(id: String) {
+                val task = map[id] ?: return
+                if (task.origin == TaskOrigin.UNKNOWN) map[id] = task.copy(origin = TaskOrigin.GOREST)
+            }
             override suspend fun deleteTaskById(id: String) { map.remove(id) }
             override suspend fun clearAll() { map.clear() }
             override suspend fun getPendingSyncTasks(): List<TaskEntity> = emptyList()
@@ -422,5 +428,224 @@ class ApiTaskRepositoryTest {
         val retrieved = fakeDao.getTaskById(collidingId)
         assertNotNull(retrieved)
         assertEquals("Original Local Task 1", retrieved?.title)
+        assertEquals(TaskOrigin.LOCAL, retrieved?.origin)
+    }
+
+    @Test
+    fun getTasks_reconcilesPreExistingGoRestTasksToGorestOriginPreservingEdits() = runTest {
+        val goRestId = "7654321"
+        val timestamp = 1730000000000L
+        val preExistingEntity = TaskEntity(
+            id = goRestId,
+            title = "Edited GoRest Task",
+            description = "Preserved Description",
+            completed = true,
+            priority = "HIGH",
+            dueDate = "Today",
+            updatedAt = timestamp,
+            syncState = SyncState.PENDING,
+            syncOp = SyncOp.UPDATE,
+            origin = TaskOrigin.UNKNOWN
+        )
+
+        val localTaskId = "local-uuid-123"
+        val localEntity = TaskEntity(
+            id = localTaskId,
+            title = "Truly Local Task",
+            completed = false,
+            syncState = SyncState.PENDING,
+            syncOp = SyncOp.CREATE,
+            origin = TaskOrigin.LOCAL
+        )
+
+        val fakeDao = object : TaskDao {
+            private val map = mutableMapOf(goRestId to preExistingEntity, localTaskId to localEntity)
+            override fun getAllTasksFlow(): Flow<List<TaskEntity>> = flowOf(map.values.toList())
+            override suspend fun getAllTasks(): List<TaskEntity> = map.values.toList()
+            override suspend fun getTaskById(id: String): TaskEntity? = map[id]
+            override suspend fun insertTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun insertTasks(tasks: List<TaskEntity>) { tasks.forEach { map[it.id] = it } }
+            override suspend fun updateTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun confirmGoRestOrigin(id: String) {
+                val task = map[id] ?: return
+                if (task.origin == TaskOrigin.UNKNOWN) map[id] = task.copy(origin = TaskOrigin.GOREST)
+            }
+            override suspend fun deleteTaskById(id: String) { map.remove(id) }
+            override suspend fun clearAll() { map.clear() }
+            override suspend fun getPendingSyncTasks(): List<TaskEntity> = map.values.filter { it.origin == TaskOrigin.LOCAL && (it.syncState == SyncState.PENDING || it.syncState == SyncState.SYNCING) }
+            override suspend fun markTasksSyncing(ids: List<String>): Int = 0
+            override suspend fun resetSyncingToPending(): Int = 0
+            override suspend fun markTaskSyncedConditional(id: String, capturedUpdatedAt: Long): Int = 0
+            override suspend fun revertTaskSyncingToPending(id: String): Int = 0
+        }
+
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                val dtos = listOf(
+                    TaskDto(id = goRestId, title = "Original Remote Title", status = "todo", priority = "high")
+                )
+                return Response.success(GoRestTaskResponse(data = dtos))
+            }
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher, fakeDao)
+        val initialPendingCount = fakeDao.getPendingSyncTasks().size
+        assertEquals(1, initialPendingCount) // The unverified legacy row is already excluded.
+
+        repository.getTasks()
+
+        val reconciledGoRest = fakeDao.getTaskById(goRestId)
+        assertNotNull(reconciledGoRest)
+        assertEquals(TaskOrigin.GOREST, reconciledGoRest?.origin)
+        assertEquals("Edited GoRest Task", reconciledGoRest?.title) // Preserved
+        assertEquals(true, reconciledGoRest?.completed) // Preserved
+        assertEquals(timestamp, reconciledGoRest?.updatedAt) // Preserved
+        assertEquals(SyncState.PENDING, reconciledGoRest?.syncState) // Preserved
+        assertEquals(SyncOp.UPDATE, reconciledGoRest?.syncOp) // Preserved
+
+        val remainingLocal = fakeDao.getTaskById(localTaskId)
+        assertNotNull(remainingLocal)
+        assertEquals(TaskOrigin.LOCAL, remainingLocal?.origin)
+
+        // Verify WorkManager pending queue now contains ONLY the local task!
+        val pendingSyncTasks = fakeDao.getPendingSyncTasks()
+        assertEquals(1, pendingSyncTasks.size)
+        assertEquals(localTaskId, pendingSyncTasks[0].id)
+    }
+
+    @Test
+    fun reconcileGoRestTaskOrigins_updatesOriginToGorestForMatchedRemoteIdsOnly() = runTest {
+        val remoteId = "7654321"
+        val localId = "local-task-456"
+
+        val task1 = TaskEntity(id = remoteId, title = "Task 1", origin = TaskOrigin.UNKNOWN)
+        val task2 = TaskEntity(id = localId, title = "Task 2", origin = TaskOrigin.LOCAL)
+
+        val fakeDao = object : TaskDao {
+            private val map = mutableMapOf(remoteId to task1, localId to task2)
+            override fun getAllTasksFlow(): Flow<List<TaskEntity>> = flowOf(map.values.toList())
+            override suspend fun getAllTasks(): List<TaskEntity> = map.values.toList()
+            override suspend fun getTaskById(id: String): TaskEntity? = map[id]
+            override suspend fun insertTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun insertTasks(tasks: List<TaskEntity>) { tasks.forEach { map[it.id] = it } }
+            override suspend fun updateTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun confirmGoRestOrigin(id: String) {
+                val task = map[id] ?: return
+                if (task.origin == TaskOrigin.UNKNOWN) map[id] = task.copy(origin = TaskOrigin.GOREST)
+            }
+            override suspend fun deleteTaskById(id: String) { map.remove(id) }
+            override suspend fun clearAll() { map.clear() }
+            override suspend fun getPendingSyncTasks(): List<TaskEntity> = emptyList()
+            override suspend fun markTasksSyncing(ids: List<String>): Int = 0
+            override suspend fun resetSyncingToPending(): Int = 0
+            override suspend fun markTaskSyncedConditional(id: String, capturedUpdatedAt: Long): Int = 0
+            override suspend fun revertTaskSyncingToPending(id: String): Int = 0
+        }
+
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int) = Response.success(GoRestTaskResponse(data = emptyList()))
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher, fakeDao)
+        repository.reconcileGoRestTaskOrigins(setOf(remoteId))
+
+        assertEquals(TaskOrigin.GOREST, fakeDao.getTaskById(remoteId)?.origin)
+        assertEquals(TaskOrigin.LOCAL, fakeDao.getTaskById(localId)?.origin)
+    }
+
+    @Test
+    fun getTasks_preservesVerifiedLocalTasksAndReconcilesMatchingLegacyTask() = runTest {
+        val syncedLocalId = "synced-local-1"
+        val pendingLocalId = "pending-local-2"
+        val gorestId = "7654321"
+
+        val syncedLocalTask = TaskEntity(
+            id = syncedLocalId,
+            title = "Synced Local Task",
+            completed = true,
+            syncState = SyncState.SYNCED,
+            syncOp = SyncOp.NONE,
+            origin = TaskOrigin.LOCAL
+        )
+
+        val pendingLocalTask = TaskEntity(
+            id = pendingLocalId,
+            title = "Pending Local Task",
+            completed = false,
+            syncState = SyncState.PENDING,
+            syncOp = SyncOp.UPDATE,
+            origin = TaskOrigin.LOCAL
+        )
+
+        val unverifiedLegacyTask = TaskEntity(
+            id = gorestId,
+            title = "Legacy GoRest Task",
+            completed = false,
+            syncState = SyncState.SYNCED,
+            syncOp = SyncOp.NONE,
+            origin = TaskOrigin.UNKNOWN
+        )
+
+        val fakeDao = object : TaskDao {
+            private val map = mutableMapOf(
+                syncedLocalId to syncedLocalTask,
+                pendingLocalId to pendingLocalTask,
+                gorestId to unverifiedLegacyTask
+            )
+            override fun getAllTasksFlow(): Flow<List<TaskEntity>> = flowOf(map.values.toList())
+            override suspend fun getAllTasks(): List<TaskEntity> = map.values.toList()
+            override suspend fun getTaskById(id: String): TaskEntity? = map[id]
+            override suspend fun insertTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun insertTasks(tasks: List<TaskEntity>) { tasks.forEach { map[it.id] = it } }
+            override suspend fun updateTask(task: TaskEntity) { map[task.id] = task }
+            override suspend fun confirmGoRestOrigin(id: String) {
+                val task = map[id] ?: return
+                if (task.origin == TaskOrigin.UNKNOWN) map[id] = task.copy(origin = TaskOrigin.GOREST)
+            }
+            override suspend fun deleteTaskById(id: String) { map.remove(id) }
+            override suspend fun clearAll() { map.clear() }
+            override suspend fun getPendingSyncTasks(): List<TaskEntity> = map.values.filter { it.origin == TaskOrigin.LOCAL && (it.syncState == SyncState.PENDING || it.syncState == SyncState.SYNCING) }
+            override suspend fun markTasksSyncing(ids: List<String>): Int = 0
+            override suspend fun resetSyncingToPending(): Int = 0
+            override suspend fun markTaskSyncedConditional(id: String, capturedUpdatedAt: Long): Int = 0
+            override suspend fun revertTaskSyncingToPending(id: String): Int = 0
+        }
+
+        val fakeApiService = object : TaskApiService {
+            override suspend fun getTasks(pageSize: Int): Response<GoRestTaskResponse> {
+                val dtos = listOf(
+                    TaskDto(id = gorestId, title = "GoRest Remote Task", status = "todo", priority = "medium")
+                )
+                return Response.success(GoRestTaskResponse(data = dtos))
+            }
+            override suspend fun createTask(task: TaskDto) = Response.success(task)
+            override suspend fun updateTaskStatus(id: String, body: Map<String, String>) = Response.success(TaskDto(id = id))
+        }
+
+        val repository = ApiTaskRepository(fakeApiService, testDispatcher, fakeDao)
+        repository.getTasks()
+
+        // 1. LOCAL / SYNCED / NONE remains LOCAL
+        val retrievedSynced = fakeDao.getTaskById(syncedLocalId)
+        assertNotNull(retrievedSynced)
+        assertEquals(TaskOrigin.LOCAL, retrievedSynced?.origin)
+        assertEquals(SyncState.SYNCED, retrievedSynced?.syncState)
+        assertEquals(SyncOp.NONE, retrievedSynced?.syncOp)
+
+        // 2. LOCAL / PENDING / UPDATE remains LOCAL
+        val retrievedPending = fakeDao.getTaskById(pendingLocalId)
+        assertNotNull(retrievedPending)
+        assertEquals(TaskOrigin.LOCAL, retrievedPending?.origin)
+        assertEquals(SyncState.PENDING, retrievedPending?.syncState)
+        assertEquals(SyncOp.UPDATE, retrievedPending?.syncOp)
+
+        // 3. Verified GoRest record classified correctly from exact remote ID
+        val retrievedGoRest = fakeDao.getTaskById(gorestId)
+        assertNotNull(retrievedGoRest)
+        assertEquals(TaskOrigin.GOREST, retrievedGoRest?.origin)
     }
 }
