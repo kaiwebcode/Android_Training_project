@@ -1,34 +1,31 @@
 package com.example.a1weektaskproject.data.remote
 
+import com.example.a1weektaskproject.BuildConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * Dedicated Retrofit client for mock sync server (http://192.168.1.113:3000/).
- */
+/** Retrofit client for the development mock sync server. */
 object ApiSyncClient {
-    var BASE_URL = "http://192.168.1.113:3000/"
+    val taskSyncApiService: TaskSyncApiService? by lazy {
+        val baseUrl = BuildConfig.MOCK_SYNC_BASE_URL
+        if (baseUrl.isEmpty()) return@lazy null
 
-    private val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
         }
-
-        OkHttpClient.Builder()
+        val client = OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
             .build()
-    }
 
-    val taskSyncApiService: TaskSyncApiService by lazy {
         Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
+            .baseUrl(baseUrl)
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(TaskSyncApiService::class.java)

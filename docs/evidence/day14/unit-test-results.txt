@@ -1,0 +1,13 @@
+JVM test summary from Gradle JUnit XML
+Run: 2026-11-20 at 11:58 UTC
+Command: .\gradlew.bat :app:testDebugUnitTest
+Source: app/build/test-results/testDebugUnitTest/TEST-*.xml
+
+Suite                                                                Tests Failures   Errors  Skipped
+com.example.a1weektaskproject.ExampleUnitTest                            1        0        0        0
+com.example.a1weektaskproject.data.ApiTaskRepositoryTest                19        0        0        0
+com.example.a1weektaskproject.sync.TaskSyncWorkerTest                   10        0        0        0
+com.example.a1weektaskproject.sync.WorkManagerSchedulerTest              1        0        0        0
+com.example.a1weektaskproject.ui.TaskDetailsViewModelTest                1        0        0        0
+com.example.a1weektaskproject.ui.TaskListViewModelTest                  17        0        0        0
+Total                                                                   49        0        0        0

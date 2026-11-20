@@ -10,6 +10,7 @@ import com.example.a1weektaskproject.data.remote.NetworkResult
 import com.example.a1weektaskproject.data.remote.TaskApiService
 import com.example.a1weektaskproject.data.remote.model.GoRestTaskResponse
 import com.example.a1weektaskproject.data.remote.model.TaskDto
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -47,6 +48,11 @@ class TaskListViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun initialState_isLoadingBeforeRepositoryResult() {
+        assertEquals(TaskListUiState.Loading, viewModel.uiState.value)
     }
 
     @Test
@@ -258,6 +264,31 @@ class TaskListViewModelTest {
         apiVm.setDemoScenario(DemoScenario.EMPTY_RESPONSE)
         testDispatcher.scheduler.advanceUntilIdle()
         assertTrue(apiVm.uiState.value is TaskListUiState.Empty)
+    }
+
+    @Test
+    fun addTask_repeatedTapsWhileSaving_createOnlyOneTask() = runTest {
+        val allowSave = CompletableDeferred<Unit>()
+        var addCallCount = 0
+        val delayedRepository = object : TaskRepository by repository {
+            override suspend fun addTask(title: String, description: String, priority: TaskPriority): NetworkResult<Task> {
+                addCallCount++
+                allowSave.await()
+                return repository.addTask(title, description, priority)
+            }
+        }
+        val testViewModel = TaskListViewModel(delayedRepository)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        testViewModel.addTask("New task")
+        testViewModel.addTask(" New task ")
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, addCallCount)
+
+        allowSave.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val content = testViewModel.uiState.value as TaskListUiState.Content
+        assertEquals(1, content.tasks.count { it.title == "New task" })
     }
 
     @Test

@@ -1,9 +1,25 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
 }
 
+val mockSyncBaseUrl = providers.gradleProperty("mockSyncBaseUrl")
+    .orElse("http://10.0.2.2:3000/")
+    .map { value ->
+        val endpoint = URI(value.trim())
+        require(
+            endpoint.scheme in listOf("http", "https") && endpoint.host != null &&
+                endpoint.rawUserInfo == null && endpoint.rawQuery == null && endpoint.rawFragment == null
+        ) { "mockSyncBaseUrl must be an HTTP(S) base URL without credentials, a query, or a fragment." }
+        endpoint.toASCIIString().trimEnd('/') + "/"
+    }
+
 android {
+    buildFeatures {
+        buildConfig = true
+    }
     namespace = "com.example.a1weektaskproject"
     compileSdk = 37
 
@@ -13,6 +29,7 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "MOCK_SYNC_BASE_URL", "\"\"")
 
         testInstrumentationRunner = "com.example.a1weektaskproject.IsolatedTestRunner"
 
@@ -37,6 +54,7 @@ android {
 
     buildTypes {
         getByName("debug") {
+            buildConfigField("String", "MOCK_SYNC_BASE_URL", "\"${mockSyncBaseUrl.get()}\"")
             signingConfig = signingConfigs.getByName("debug")
             if (providers.gradleProperty("day13IsolatedTest").orNull == "true") {
                 applicationIdSuffix = ".day13test"
@@ -77,7 +95,7 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.androidx.test.core.ktx)
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito:mockito-core:5.20.0")
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.core.ktx)

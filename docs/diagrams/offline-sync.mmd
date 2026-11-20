@@ -1,41 +1,40 @@
 sequenceDiagram
     autonumber
-    actor User as Employee / User
-    participant App as App / MainActivity
+    actor User
+    participant App as Employee Task Manager
     participant Repo as ApiTaskRepository
-    participant Room as Room Database (SSOT)
-    participant WM as WorkManager Scheduler
+    participant Room as TaskDao / Room
+    participant WM as WorkManager
     participant Worker as TaskSyncWorker
-    participant Server as Mock / Remote API
+    participant Server as Development Mock API
 
-    User->>App: Add Task / Complete Task (Offline / Airplane Mode)
+    User->>App: Add or complete a local task
     App->>Repo: addTask() / completeTask()
-    Repo->>Room: Insert / Update Task (syncState = PENDING, syncOp = CREATE/UPDATE)
-    Repo->>WM: WorkManagerScheduler.scheduleSync(context)
-    WM-->>WM: EnqueueUniqueWork (ExistingWorkPolicy.KEEP, NetworkType.CONNECTED)
-
-    Note over WM,Worker: Network Connectivity Restored
-    WM->>Worker: Trigger doWork() (CoroutineWorker)
-    Worker->>Room: resetSyncingToPending() (Crash recovery)
+    Repo->>Room: Persist the task and pending sync operation
+    Repo->>WM: scheduleSync(context)
+    WM->>WM: Enqueue unique work (APPEND_OR_REPLACE, CONNECTED)
+    WM->>Worker: doWork()
+    Worker->>Room: resetSyncingToPending()
     Worker->>Room: getPendingSyncTasks()
-    Room-->>Worker: List<TaskEntity> [PENDING / SYNCING]
-    Worker->>Room: markTasksSyncing(ids) [Atomic Claiming]
-
-    loop For Each Pending Task
-        Worker->>Server: POST /tasks or PATCH /tasks/:id (with stable clientTaskId)
-        alt Case A: Success (200 OK / 201 Created)
-            Server-->>Worker: Success Response
-            Worker->>Room: markTaskSyncedConditional(id, capturedUpdatedAt)
-            Room-->>Worker: syncState = SYNCED, syncOp = NONE
-        else Case B: Timeout After Server Save / Transient Error
-            Server-->>Worker: SocketTimeoutException / HTTP 504 (Task committed on server)
-            Worker->>Room: revertTaskSyncingToPending(id)
-            Worker-->>WM: Result.retry() (Exponential Backoff)
-            Note over Worker,Server: WorkManager Retries with SAME clientTaskId
-            Worker->>Server: POST /tasks (Retry with stable clientTaskId)
-            Server->>Server: Detect existing clientTaskId (PRIMARY KEY constraint)
-            Server-->>Worker: 200 OK (Idempotent success, zero duplicates created)
-            Worker->>Room: markTaskSyncedConditional(id, capturedUpdatedAt)
+    loop Each candidate
+        Worker->>Room: claimForSync(candidate.id)
+        opt Claim succeeded
+            Worker->>Server: POST /tasks or PATCH /tasks/:id (stable clientTaskId)
+            alt Valid successful response
+                Server-->>Worker: Acknowledge the task
+                Worker->>Room: acknowledgeMockSync(submitted, needsPatch)
+                Note over Worker,Room: A stale CREATE replay can queue the newer edit as PENDING / UPDATE
+                opt Acknowledgement did not apply
+                    Worker->>Room: revertTaskSyncingToPending(id)
+                end
+            else Transient upload failure
+                Server-->>Worker: HTTP 408 / 5xx or transport exception
+                Worker->>Room: revertTaskSyncingToPending(id)
+            end
         end
     end
-    Worker-->>WM: Result.success()
+    alt Transient failure or unacknowledged local edit
+        Worker-->>WM: Result.retry() (exponential backoff)
+    else No retry requested
+        Worker-->>WM: Result.success()
+    end

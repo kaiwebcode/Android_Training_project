@@ -1,0 +1,8 @@
+11-20 16:23:10.268 20722 20722 D WM-SystemJobService: onStartJob for WorkGenerationalId(workSpecId=d7a8339f-8594-4572-9931-22686c5d5d1b, generation=0)
+11-20 16:23:10.279 20722 20722 D WM-WorkerWrapper: Starting work for com.example.a1weektaskproject.sync.TaskSyncWorker
+11-20 16:23:10.279 20722 20868 D TaskSyncWorker: TaskSyncWorker.doWork() started...
+11-20 16:23:10.286 20722 20868 D TaskSyncWorker: performSync() executing...
+11-20 16:23:10.305 20722 20817 D TaskSyncWorker: Found 0 pending tasks to synchronize.
+11-20 16:23:10.340 20722 20866 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=d7a8339f-8594-4572-9931-22686c5d5d1b, class=com.example.a1weektaskproject.sync.TaskSyncWorker, tags={ com.example.a1weektaskproject.sync.TaskSyncWorker } ]
+11-20 16:23:10.346 20722 20722 D WM-Processor: Processor d7a8339f-8594-4572-9931-22686c5d5d1b executed; reschedule = false
+11-20 16:23:10.347 20722 20722 D WM-SystemJobService: d7a8339f-8594-4572-9931-22686c5d5d1b executed on JobScheduler

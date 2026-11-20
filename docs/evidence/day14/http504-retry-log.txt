@@ -1,0 +1,20 @@
+11-20 16:41:05.158 D/WM-SystemJobScheduler(32425): Scheduling work ID 12c4b8c4-0a32-495d-aab8-baee826eac3a (com.example.a1weektaskproject.sync.TaskSyncWorker), Job ID 22
+11-20 16:41:05.245 D/WM-WorkerWrapper(32425): Starting work for com.example.a1weektaskproject.sync.TaskSyncWorker
+11-20 16:41:05.246 D/TaskSyncWorker(32425): TaskSyncWorker.doWork() started...
+11-20 16:41:05.246 D/TaskSyncWorker(32425): performSync() executing...
+11-20 16:41:05.254 D/TaskSyncWorker(32425): Found 1 pending tasks to synchronize.
+11-20 16:41:05.261 D/TaskSyncWorker(32425): Syncing task clientTaskId=402a06c0-f04c-438a-b13a-530d71934032, title='DAY14-504-FINAL', syncOp=CREATE
+11-20 16:41:05.377 I/okhttp.OkHttpClient(32425): <-- 504 Gateway Timeout http://[redacted-development-host]:3000/tasks (109ms)
+11-20 16:41:05.382 E/TaskSyncWorker(32425): Mock server returned error code 504 for clientTaskId=402a06c0-f04c-438a-b13a-530d71934032
+11-20 16:41:05.397 D/TaskSyncWorker(32425): Sync completed with transient failures or pending local edits. Requesting WorkManager retry.
+11-20 16:41:05.401 I/WM-WorkerWrapper(32425): Worker result RETRY for Work [ id=12c4b8c4-0a32-495d-aab8-baee826eac3a, class=com.example.a1weektaskproject.sync.TaskSyncWorker, tags={ com.example.a1weektaskproject.sync.TaskSyncWorker } ]
+11-20 16:41:05.461 D/WM-SystemJobScheduler(32425): Scheduling work ID 12c4b8c4-0a32-495d-aab8-baee826eac3a (com.example.a1weektaskproject.sync.TaskSyncWorker), Job ID 23
+11-20 16:41:15.489 D/WM-WorkerWrapper(32425): Starting work for com.example.a1weektaskproject.sync.TaskSyncWorker
+11-20 16:41:15.489 D/TaskSyncWorker(32425): TaskSyncWorker.doWork() started...
+11-20 16:41:15.489 D/TaskSyncWorker(32425): performSync() executing...
+11-20 16:41:15.504 D/TaskSyncWorker(32425): Found 1 pending tasks to synchronize.
+11-20 16:41:15.514 D/TaskSyncWorker(32425): Syncing task clientTaskId=402a06c0-f04c-438a-b13a-530d71934032, title='DAY14-504-FINAL', syncOp=CREATE
+11-20 16:41:15.601 I/okhttp.OkHttpClient(32425): {"status":"success","message":"Task already exists (idempotent retry)","duplicateCreated":false,"task":{"clientTaskId":"402a06c0-f04c-438a-b13a-530d71934032","title":"DAY14-504-FINAL","description":"HTTP 504 retry verification","completed":false,"priority":"HIGH","dueDate":"Nov 8, 2025","version":1,"createdAt":"2026-11-20 11:11:07","updatedAt":"2026-11-20 11:11:07"}}
+11-20 16:41:15.611 D/TaskSyncWorker(32425): Successfully synced task clientTaskId=402a06c0-f04c-438a-b13a-530d71934032 with mock server.
+11-20 16:41:15.611 D/TaskSyncWorker(32425): Sync completed successfully for all tasks.
+11-20 16:41:15.626 I/WM-WorkerWrapper(32425): Worker result SUCCESS for Work [ id=12c4b8c4-0a32-495d-aab8-baee826eac3a, class=com.example.a1weektaskproject.sync.TaskSyncWorker, tags={ com.example.a1weektaskproject.sync.TaskSyncWorker } ]
