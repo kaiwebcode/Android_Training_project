@@ -1,0 +1,16 @@
+{
+  "count": 1,
+  "tasks": [
+    {
+      "clientTaskId": "402a06c0-f04c-438a-b13a-530d71934032",
+      "title": "DAY14-504-FINAL",
+      "description": "HTTP 504 retry verification",
+      "completed": false,
+      "priority": "HIGH",
+      "dueDate": "Nov 8, 2025",
+      "version": 1,
+      "createdAt": "2026-11-20 11:11:07",
+      "updatedAt": "2026-11-20 11:11:07"
+    }
+  ]
+}

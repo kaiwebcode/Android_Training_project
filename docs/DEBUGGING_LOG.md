@@ -54,11 +54,11 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 ---
 
 ## Defect 7: Physical Device Mock Sync Routing & Cleartext HTTP Block (`HTTP 404` / Cleartext Traffic Block)
-- **Symptom / Description:** Initial physical device sync calls resulted in `HTTP 404` on `POST /public/v3/tasks` and blocked connections when communicating with `http://192.168.1.114:3000`.
+- **Symptom / Description:** Initial physical device sync calls resulted in `HTTP 404` on `POST /public/v3/tasks` and blocked connections when communicating with the development mock server.
 - **Step 1 — Reproduce:** Created tasks offline, restored internet, observed Logcat and mock server logs.
 - **Step 2 — Observe:** Logcat showed requests directed to `/public/v3/tasks` (GoRest path) and cleartext HTTP security blocks by Android OS.
 - **Step 3 — Isolate:** `TaskSyncWorker` was sharing GoRest `TaskApiService` with `@POST("public/v3/tasks")`, and `AndroidManifest.xml` lacked `android:usesCleartextTraffic="true"`.
-- **Step 4 — Verify:** Created dedicated `TaskSyncApiService` and `ApiSyncClient` targeting `http://192.168.1.114:3000/tasks`, added `android:usesCleartextTraffic="true"`, and set `ExistingWorkPolicy.REPLACE`. Re-tested live on physical device: Task 1, Task 2, and Task 3 successfully synced to mock server (`SYNCED`, `syncOp = NONE`, zero duplicates).
+- **Step 4 — Verify:** Created dedicated `TaskSyncApiService` and `ApiSyncClient` targeting the development mock server, added `android:usesCleartextTraffic="true"`, and set `ExistingWorkPolicy.REPLACE`. Re-tested live on physical device: Task 1, Task 2, and Task 3 successfully synced to mock server (`SYNCED`, `syncOp = NONE`, zero duplicates).
 
 ---
 
@@ -72,13 +72,13 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 ---
 
 ## Defect 9: Bug A — Duplicate Task After Retry & Idempotent Client UUID Handling
-- **Symptom / Description:** Potential duplicate task creation on mock sync server (`http://192.168.1.113:3000/tasks`) during network retry attempts.
+- **Symptom / Description:** Potential duplicate task creation on the development mock server during network retry attempts.
 - **Step 1 — Reproduce:** Created local task `"Day 13 bug A"` on OnePlus EB2101 device connected to Node.js mock sync server.
 - **Step 2 — Observe:** Inspected Node.js mock server endpoints `GET /tasks` before and after synchronization (`docs/evidence/day13/bugA-before.json` and `docs/evidence/day13/bugA-after.json`). Exactly 1 unique UUID task record (`clientTaskId = "cbe9ffbb-4dcd-45e0-a94c-d7698e7aaeac"`) was created on server (`docs/evidence/day13/bugA-unique-task.json`), and Room held `syncState = SYNCED`, `syncOp = NONE`.
 - **Step 3 — Isolate:** Analyzed client-side UUID generation and `TaskSyncWorker` retry execution paths. The client generates a stable UUID `id` (`clientTaskId`) upon task creation.
-- **Step 4 — Hypothesize:** If a network timeout occurs after server persistence during response delivery, retrying with the same `clientTaskId` avoids duplicates on servers enforcing unique key constraints by `clientTaskId`. (Note: A live HTTP 504 server timeout trace was not captured in logs during testing; evidence reflects stable UUID client-side handling and unique server entry).
+- **Step 4 — Hypothesize:** If the response is lost after persistence, replaying the same client ID lets the server return the existing record.
 - **Step 5 — Fix:** Preserved stable UUID generation in `ApiTaskRepository.addTask()` and idempotent `clientTaskId` transmission in `TaskSyncWorker`. On a successful CREATE replay, compare the returned task to the submitted snapshot and recheck the current Room row. Queue a PATCH for a newer edit under the same UUID.
-- **Step 6 — Verify:** Confirmed via `docs/evidence/day13/bugA-after.json` and `bugA-unique-task.json` that 1 unique server task exists for `clientTaskId = "cbe9ffbb-4dcd-45e0-a94c-d7698e7aaeac"` and Room DB contains `syncState = SYNCED`, `syncOp = NONE`. Unit test `performSync_handlesTimeoutAfterServerSaveIdempotentlyWithoutDuplicates()` passed.
+- **Step 6 — Verify:** The separate Day 14 trace shows HTTP 504, retry with the same UUID, an idempotent acknowledgement, and worker success. The server extract retains one matching record. [Retry trace](evidence/day14/http504-retry-log.txt) · [Server extract](evidence/day14/server-tasks-final.json)
 
 ---
 
@@ -103,7 +103,15 @@ $$\text{Reproduce} \longrightarrow \text{Observe} \longrightarrow \text{Isolate}
 
 ---
 
-## Known Limitations & Unverified Scenarios
-1. **Live HTTP 504 Gateway Timeout Trace (Bug A):** A live HTTP 504 server gateway timeout trace was not captured in physical device logs during testing. Client-side stable UUID handling and idempotency are verified via unit tests and mock server payload logs (`docs/evidence/day13/bugA-after.json`).
-2. **Post-rotation refresh (Bug C):** The manual record covers Room after rotation. The rendered status and Room value after a confirmed subsequent refresh remain unverified.
-3. **Legacy provenance:** A row stays UNKNOWN until its origin can be verified. Its content and pending edits stay in Room while uploads are paused.
+## Defect 12: Day 14 Reliability Verification
+
+- **Reproduce:** Trigger an HTTP 504 after a mock-server save. The automated regressions separately exercise missing DAO, rapid taps, and recovery from a seeded `SYNCING` row.
+- **Observe:** The captured retry preserves the work ID and client UUID. The server reports an idempotent replay and the worker returns success.
+- **Isolate:** The stable UUID links the retry and the server record. ViewModel guards and DAO startup recovery are covered by automated assertions.
+- **Verify:** The [filtered trace](evidence/day14/http504-retry-log.txt) and [server extract](evidence/day14/server-tasks-final.json) establish the live retry outcome. A device network drop, post-fix repeated taps, rotation during loading, offline restart sequence, and in-flight process kill remain unverified. Defect 11 covers only the earlier Room retention observation.
+
+---
+
+## Known Limitations & Disclosures
+1. **Legacy provenance:** A row stays UNKNOWN until its origin can be verified. Its content and pending edits stay in Room while uploads are paused.
+2. **Device Storage Threshold:** Device installation requires at least ~500 MB free storage on `/data/user/0` to allow package installation.

@@ -1,6 +1,8 @@
 package com.example.a1weektaskproject.sync
 
+import android.content.Context
 import androidx.work.ListenableWorker
+import androidx.work.WorkerParameters
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.example.a1weektaskproject.data.local.SyncOp
@@ -21,6 +23,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.RecordedRequest
@@ -39,6 +43,15 @@ class TaskSyncWorkerTest {
     @Before
     fun setUp() {
         fakeDao = FakeTaskDao()
+    }
+
+    @Test
+    fun doWork_returnsFailureWhenTaskDaoIsUnavailable() = runTest {
+        val context = mock(Context::class.java)
+        `when`(context.applicationContext).thenReturn(context)
+        val worker = TaskSyncWorker(context, mock(WorkerParameters::class.java))
+
+        assertEquals(ListenableWorker.Result.failure(), worker.doWork())
     }
 
     @Test
@@ -231,7 +244,7 @@ class TaskSyncWorkerTest {
     }
 
     @Test
-    fun performSync_retriesWithExponentialBackoffOnNetworkTimeout() = runTest {
+    fun performSync_requestsRetryAndRestoresPendingOnNetworkTimeout() = runTest {
         val taskId = UUID.randomUUID().toString()
         fakeDao.insertTask(
             TaskEntity(

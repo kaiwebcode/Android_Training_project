@@ -17,6 +17,10 @@ object WorkManagerScheduler {
     const val WORK_NAME = "EmployeeTaskSyncWorker"
 
     fun scheduleSync(context: Context) {
+        scheduleSync(WorkManager.getInstance(context.applicationContext))
+    }
+
+    internal fun scheduleSync(workManager: WorkManager) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -30,7 +34,7 @@ object WorkManagerScheduler {
             )
             .build()
 
-        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+        workManager.enqueueUniqueWork(
             WORK_NAME,
             ExistingWorkPolicy.APPEND_OR_REPLACE,
             syncWorkRequest

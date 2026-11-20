@@ -1,0 +1,11 @@
+Instrumentation test summary from Gradle JUnit XML
+Run: 2026-11-20 at 09:08 UTC
+Device: OnePlus EB2101, Android 12
+Command: .\gradlew.bat -Pday13IsolatedTest=true :app:connectedDebugAndroidTest
+Source: app/build/outputs/androidTest-results/connected/debug/TEST-EB2101 - 12.xml
+
+Suite                                                                    Tests Failures Errors Skipped
+com.example.a1weektaskproject.ExampleInstrumentedTest                         1        0      0       0
+com.example.a1weektaskproject.data.local.AppDatabaseMigrationTest              5        0      0       0
+com.example.a1weektaskproject.data.local.TaskDaoTest                            8        0      0       0
+Total                                                                       14        0      0       0
